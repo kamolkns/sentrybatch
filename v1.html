@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https:; upgrade-insecure-requests">
+<meta name="theme-color" content="#0A0E13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>Sentry Batch — Bulk IP Reputation Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
+<style>
+/* =========================================================================
+   DESIGN TOKENS
+   Subject: a SOC analyst's bulk threat-intel console. Dark ops palette,
+   monospace data face for anything numeric/tabular, Inter for UI chrome.
+   ========================================================================= */
+:root{
+  --bg:            #0A0E13;
+  --panel:         #101720;
+  --panel-2:       #141D28;
+  --border:        #1E2A38;
+  --border-soft:   #182330;
+  --text:          #E7ECF2;
+  --text-dim:      #8FA0B3;
+  --text-faint:    #5A6B7D;
+  --accent:        #45D9C9;
+  --accent-dim:    #1F5C57;
+  --safe:          #3DD68C;
+  --safe-bg:       rgba(61,214,140,0.12);
+  --suspicious:    #E8C339;
+  --suspicious-bg: rgba(232,195,57,0.12);
+  --risky:         #F0913E;
+  --risky-bg:      rgba(240,145,62,0.12);
+  --malicious:     #F0576B;
+  --malicious-bg:  rgba(240,87,107,0.12);
+  --font-ui:       'Inter', system-ui, sans-serif;
+  --font-mono:     'IBM Plex Mono', 'SF Mono', monospace;
+  --radius:        6px;
+  --shadow:        0 8px 24px rgba(0,0,0,0.35);
+}
+html[data-theme="light"]{
+  --bg:            #F3F5F7;
+  --panel:         #FFFFFF;
+  --panel-2:       #F8F9FB;
+  --border:        #DCE2E8;
+  --border-soft:   #E7EBEF;
+  --text:          #131A22;
+  --text-dim:      #55636F;
+  --text-faint:    #97A3AF;
+  --accent:        #0E8F82;
+  --accent-dim:    #CFEEEA;
+  --safe:          #1B9A5C;
+  --safe-bg:       rgba(27,154,92,0.10);
+  --suspicious:    #A6790A;
+  --suspicious-bg: rgba(166,121,10,0.10);
+  --risky:         #C4661A;
+  --risky-bg:      rgba(196,102,26,0.10);
+  --malicious:     #C82F45;
+  --malicious-bg:  rgba(200,47,69,0.10);
+  --shadow:        0 8px 24px rgba(20,30,40,0.08);
+}
+
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);
+  -webkit-font-smoothing:antialiased;}
+::selection{background:var(--accent-dim);color:var(--text);}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:var(--panel);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
+
+a{color:var(--accent);}
+button{font-family:var(--font-ui);cursor:pointer;}
+input,select,textarea{font-family:var(--font-mono);}
+
+.wrap{max-width:1320px;margin:0 auto;padding:20px 24px 80px;}
+
+/* ---------- Top bar / signature element ---------- */
+header.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 0 20px;border-bottom:1px solid var(--border-soft);margin-bottom:22px;
+}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-mark{
+  width:36px;height:36px;border-radius:8px;
+  background:linear-gradient(155deg,var(--accent),var(--accent-dim));
+  display:flex;align-items:center;justify-content:center;color:#06110F;font-weight:800;
+  font-family:var(--font-mono);font-size:15px;flex-shrink:0;
+}
+.brand h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px;}
+.brand .sub{font-size:11.5px;color:var(--text-faint);font-family:var(--font-mono);margin-top:1px;}
+.top-actions{display:flex;align-items:center;gap:10px;}
+.pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);display:inline-block;margin-right:6px;}
+.pulse-dot.live{background:var(--safe);box-shadow:0 0 0 0 rgba(61,214,140,.6);animation:pulse 1.8s infinite;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,214,140,.55);}70%{box-shadow:0 0 0 8px rgba(61,214,140,0);}100%{box-shadow:0 0 0 0 rgba(61,214,140,0);}}
+@media (prefers-reduced-motion: reduce){.pulse-dot.live{animation:none;}}
+
+.icon-btn{
+  background:var(--panel);border:1px solid var(--border);color:var(--text-dim);
+  border-radius:var(--radius);padding:8px 12px;font-size:12.5px;display:flex;align-items:center;gap:6px;
+  transition:.15s border-color, .15s color;
+}
+.icon-btn:hover{border-color:var(--accent);color:var(--text);}
+.icon-btn:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
+}
+
+/* ---------- Panels ---------- */
+.panel{
+  background:var(--panel);border:1px solid var(--border-soft);border-radius:var(--radius);
+  margin-bottom:16px;overflow:hidden;
+}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 18px;cursor:pointer;user-select:none;
+  border-bottom:1px solid transparent;
+}
+.panel-head:hover{background:var(--panel-2);}
+.panel-head h2{font-size:13px;margin:0;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text-dim);}
+.panel-head .chev{font-size:11px;color:var(--text-faint);transition:transform .15s;}
+.panel.collapsed .chev{transform:rotate(-90deg);}
+.panel.collapsed .panel-body{display:none;}
+.panel-body{padding:18px;border-top:1px solid var(--border-soft);}
+
+.field-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
+.field{flex:1;min-width:200px;}
+.field label{display:block;font-size:11.5px;color:var(--text-dim);margin-bottom:6px;font-weight:600;letter-spacing:.2px;}
+.field input[type=text], .field input[type=number], .field input[type=password], .field select{
+  width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+  padding:9px 11px;border-radius:5px;font-size:13px;
+}
+.field input:focus, .field select:focus, textarea:focus{border-color:var(--accent);}
+.key-field{position:relative;}
+.key-field input{padding-right:38px;}
+.key-visibility{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:28px;height:28px;padding:0;border-radius:4px;border:1px solid var(--border);
+  background:var(--panel);color:var(--text-dim);display:flex;align-items:center;justify-content:center;
+  font-size:14px;line-height:1;font-weight:700;white-space:nowrap;
+}
+.key-visibility:hover{border-color:var(--accent);color:var(--text);}
+.key-visibility:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.hint{font-size:11px;color:var(--text-faint);margin-top:5px;}
+.btn{
+  background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+  padding:9px 16px;border-radius:5px;font-size:12.5px;font-weight:600;transition:.15s;
+}
+.btn:hover{border-color:var(--accent);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#06110F;}
+.btn.primary:hover{filter:brightness(1.08);}
+.btn.danger{border-color:var(--malicious);color:var(--malicious);}
+.btn.danger:hover{background:var(--malicious-bg);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+.toggle-btn{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  width:100%;min-height:40px;padding:10px 12px;cursor:pointer;
+  font-size:12.5px;color:var(--text-dim);background:var(--panel-2);
+  border:1px solid var(--border);border-radius:5px;
+  transition:.15s border-color, .15s color, .15s background;
+}
+.toggle-btn:hover{border-color:var(--accent);color:var(--text);}
+.toggle-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.toggle-btn .toggle-label{font-weight:600;flex:1;min-width:0;text-align:left;}
+.toggle-btn .toggle-state{
+  min-width:42px;padding:5px 10px;border-radius:999px;
+  background:var(--panel);border:1px solid var(--border);
+  color:var(--text-dim);text-align:center;font-size:11px;font-weight:700;
+}
+.toggle-btn.on{
+  border-color:var(--safe);
+  background:var(--safe-bg);
+  color:var(--text);
+}
+.toggle-btn.on .toggle-state{
+  background:var(--safe);
+  border-color:var(--safe);
+  color:#06110F;
+}
+
+textarea#ipInput{width:100%;min-height:130px;background:var(--panel-2);border:1px solid var(--border);
+  color:var(--text);padding:11px;border-radius:5px;font-size:12.5px;resize:vertical;line-height:1.5;}
+
+.dropzone{
+  border:1.5px dashed var(--border);border-radius:var(--radius);padding:16px;text-align:center;
+  color:var(--text-faint);font-size:12px;margin-bottom:14px;transition:.15s;cursor:pointer;
+}
+.dropzone.drag{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+
+.count-strip{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--text-dim);margin-top:4px;}
+.count-strip b{color:var(--text);font-family:var(--font-mono);}
+
+/* ---------- progress ---------- */
+.progress-track{width:100%;height:8px;background:var(--panel-2);border-radius:5px;overflow:hidden;border:1px solid var(--border-soft);}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent-dim),var(--accent));width:0%;transition:width .25s;}
+.progress-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-dim);margin-top:6px;font-family:var(--font-mono);}
+
+.log-console{
+  background:#05080B;border:1px solid var(--border-soft);border-radius:5px;padding:10px 12px;
+  height:150px;overflow-y:auto;font-family:var(--font-mono);font-size:11.5px;line-height:1.65;color:#7EE8B8;
+  margin-top:12px;
+}
+html[data-theme="light"] .log-console{background:#0E1620;color:#7EE8B8;}
+.log-console .l-err{color:var(--malicious);}
+.log-console .l-warn{color:var(--suspicious);}
+.log-console .l-dim{color:var(--text-faint);}
+
+/* ---------- summary cards ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+.card{background:var(--panel-2);border:1px solid var(--border-soft);border-radius:var(--radius);padding:14px 16px;}
+.card .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-faint);font-weight:700;}
+.card .v{font-size:22px;font-family:var(--font-mono);font-weight:600;margin-top:6px;}
+.card .v.safe{color:var(--safe);}
+.card .v.mal{color:var(--malicious);}
+.card .sub2{font-size:11px;color:var(--text-dim);margin-top:3px;font-family:var(--font-mono);}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+.chart-box{background:var(--panel-2);border:1px solid var(--border-soft);border-radius:var(--radius);padding:14px;height:220px;}
+@media (max-width:720px){.chart-row{grid-template-columns:1fr;}}
+.viz-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px;}
+.viz-wide{grid-column:1 / -1;}
+.viz-card{background:var(--panel-2);border:1px solid var(--border-soft);border-radius:var(--radius);padding:14px;min-height:240px;}
+.viz-card h3{margin:0 0 10px;font-size:15px;font-weight:600;color:var(--text);}
+.viz-card .subtle{margin:4px 0 0;color:var(--text-dim);font-size:12px;}
+.viz-card canvas{width:100% !important;height:190px !important;}
+.viz-map{width:100%;height:320px;display:block;}
+.viz-heatmap{width:100%;height:280px;display:block;}
+@media (max-width:1100px){.viz-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width:720px){
+  .viz-grid{grid-template-columns:1fr;}
+  .viz-map{height:280px;}
+  .table-tools{align-items:stretch;}
+  .table-tools .left, .table-tools .right{width:100%;}
+  .table-tools .right .btn{flex:1 1 auto;}
+  .search-box{min-width:0;width:100%;}
+  .field-row{flex-direction:column;}
+  .field{min-width:0;}
+  .panel-body{padding:14px;}
+  .card{padding:12px 13px;}
+  .toggle-btn{min-height:38px;padding:9px 10px;}
+  .toggle-btn .toggle-state{min-width:38px;padding:4px 8px;}
+}
+@media (prefers-reduced-motion: reduce){
+  *{scroll-behavior:auto !important;}
+  .progress-fill{transition:none;}
+  .panel-head .chev{transition:none;}
+  .btn,.icon-btn,.toggle-btn,.search-box{transition:none;}
+}
+
+/* ---------- table ---------- */
+.table-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;justify-content:space-between;}
+.table-tools .left, .table-tools .right{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.search-box{background:var(--panel-2);border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:12.5px;color:var(--text);min-width:180px;}
+.pill{padding:6px 12px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border);font-size:11.5px;color:var(--text-dim);}
+.pill.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+
+.table-scroll{overflow:auto;max-height:650px;border:1px solid var(--border-soft);border-radius:var(--radius);}
+table.results{border-collapse:collapse;width:100%;font-size:12px;font-family:var(--font-mono);min-width:1400px;}
+table.results thead th{
+  background:var(--panel-2);color:var(--text-dim);text-align:left;padding:10px 12px;
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;position:sticky;top:0;cursor:pointer;
+  border-bottom:1px solid var(--border-soft);white-space:nowrap;user-select:none;
+}
+table.results thead th:hover{color:var(--accent);}
+table.results thead th .arrow{font-size:9px;color:var(--accent);margin-left:3px;}
+table.results tbody td{padding:9px 12px;border-bottom:1px solid var(--border-soft);white-space:nowrap;color:var(--text);}
+table.results tbody tr:hover{background:var(--panel-2);}
+table.results tbody tr.newrow{animation:flashin .9s ease-out;}
+@keyframes flashin{from{background:var(--accent-dim);}to{background:transparent;}}
+@media (prefers-reduced-motion: reduce){table.results tbody tr.newrow{animation:none;}}
+
+.badge{padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;letter-spacing:.3px;display:inline-block;}
+.badge.safe{background:var(--safe-bg);color:var(--safe);}
+.badge.suspicious{background:var(--suspicious-bg);color:var(--suspicious);}
+.badge.risky{background:var(--risky-bg);color:var(--risky);}
+.badge.malicious{background:var(--malicious-bg);color:var(--malicious);}
+.badge.pending{background:var(--panel-2);color:var(--text-faint);border:1px solid var(--border);}
+.badge.error{background:var(--malicious-bg);color:var(--malicious);}
+
+.score-cell{display:flex;align-items:center;gap:8px;min-width:110px;}
+.score-bar-track{width:60px;height:6px;background:var(--panel);border-radius:4px;overflow:hidden;border:1px solid var(--border-soft);}
+.score-bar-fill{height:100%;}
+.score-num{font-weight:700;min-width:26px;}
+
+.row-expand{cursor:pointer;}
+.row-actions{display:flex;gap:4px;flex-wrap:nowrap;}
+.row-actions button{
+  padding:3px 7px;font-size:10px;border-radius:4px;background:var(--panel);
+  border:1px solid var(--border);color:var(--text-dim);white-space:nowrap;
+}
+.row-actions button:hover{border-color:var(--accent);color:var(--text);}
+.row-actions button.danger:hover{border-color:var(--malicious);color:var(--malicious);}
+.status-detail{font-size:10px;color:var(--text-faint);display:block;margin-top:2px;max-width:140px;white-space:normal;line-height:1.3;}
+.api-pills{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:11px;font-family:var(--font-mono);}
+.api-pill{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--panel-2);color:var(--text-dim);}
+.api-pill.connected{border-color:var(--safe);color:var(--safe);}
+.api-pill.disconnected{border-color:var(--malicious);color:var(--malicious);}
+.api-pill.quota{border-color:var(--accent-dim);color:var(--accent);}
+.detail-row td{background:var(--panel-2);white-space:normal;padding:14px 18px;font-family:var(--font-mono);font-size:11.5px;color:var(--text-dim);}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+.detail-grid div b{color:var(--text);}
+.retry-link{color:var(--accent);text-decoration:underline;cursor:pointer;font-size:11px;background:none;border:none;padding:0;}
+
+.pagination{display:flex;justify-content:center;align-items:center;gap:10px;padding:14px 0 4px;font-size:12px;color:var(--text-dim);}
+.pagination button{background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:5px;font-size:12px;}
+.pagination button:disabled{opacity:.35;}
+
+/* ---------- readme ---------- */
+.readme{font-size:13px;line-height:1.7;color:var(--text-dim);}
+.readme h3{color:var(--text);font-size:13.5px;margin:16px 0 6px;}
+.readme code{background:var(--panel-2);border:1px solid var(--border-soft);padding:1px 6px;border-radius:4px;font-size:11.5px;color:var(--accent);}
+.readme ul{padding-left:20px;}
+.callout{background:var(--suspicious-bg);border:1px solid var(--suspicious);color:var(--text);padding:10px 14px;border-radius:5px;font-size:12px;margin:10px 0;}
+
+.footer-note{text-align:center;color:var(--text-faint);font-size:11px;margin-top:30px;font-family:var(--font-mono);}
+@media (max-width:600px){
+  .wrap{padding:14px;}
+  header.topbar{flex-direction:column;align-items:flex-start;gap:10px;}
+}
+[hidden]{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">IP</div>
+      <div>
+        <h1>Sentry Batch</h1>
+        <div class="sub">bulk IP &amp; domain reputation console — client-side only</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="api-pills" id="apiStatusBar">
+        <span class="api-pill" id="vtApiPill">VT: —</span>
+        <span class="api-pill quota" id="vtQuotaPill">VT quota: —</span>
+        <span class="api-pill" id="abApiPill">AbuseIPDB: —</span>
+      </div>
+      <span id="netStatus" class="icon-btn" style="cursor:default;"><span class="pulse-dot" id="pulseDot"></span><span id="netStatusText">Idle</span></span>
+      <button class="icon-btn" id="themeToggle">☾ Theme</button>
+    </div>
+  </header>
+
+  <!-- ============ SETTINGS PANEL ============ -->
+  <section class="panel collapsed" id="panelSettings">
+    <div class="panel-head" data-target="panelSettings">
+      <h2>⚙ Settings &amp; API Keys</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="vtKey">VirusTotal API key</label>
+          <div class="key-field">
+            <input type="password" id="vtKey" placeholder="Paste your VT v3 API key">
+            <button class="key-visibility" type="button" data-target="vtKey" aria-label="Show VirusTotal API key" aria-pressed="false">👁</button>
+          </div>
+          <div class="hint">Public tier: 4 req/min, 500/day. <a href="https://www.virustotal.com/gui/my-apikey" target="_blank" rel="noopener">Get a key</a></div>
+        </div>
+        <div class="field">
+          <label for="vtTier">VT key tier</label>
+          <select id="vtTier">
+            <option value="4">Public (4/min)</option>
+            <option value="60">Premium / custom rate</option>
+          </select>
+          <div id="vtCustomRateWrap" class="field" style="margin-top:8px;display:none;">
+            <label for="vtCustomRate">Custom requests/min</label>
+            <input type="number" id="vtCustomRate" value="60" min="1" max="1000">
+          </div>
+        </div>
+        <div class="field">
+          <label for="abKey">AbuseIPDB API key (optional)</label>
+          <div class="key-field">
+            <input type="password" id="abKey" placeholder="Paste your AbuseIPDB key">
+            <button class="key-visibility" type="button" data-target="abKey" aria-label="Show AbuseIPDB API key" aria-pressed="false">👁</button>
+          </div>
+          <div class="hint">Free tier: 1,000 checks/day.</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="otxKey">AlienVault OTX API key (optional)</label>
+          <div class="key-field">
+            <input type="password" id="otxKey" placeholder="Paste your OTX key for pulse intelligence">
+            <button class="key-visibility" type="button" data-target="otxKey" aria-label="Show AlienVault OTX API key" aria-pressed="false">👁</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="threatFoxKey">ThreatFox API key (optional)</label>
+          <div class="key-field">
+            <input type="password" id="threatFoxKey" placeholder="Paste your abuse.ch ThreatFox key">
+            <button class="key-visibility" type="button" data-target="threatFoxKey" aria-label="Show ThreatFox API key" aria-pressed="false">👁</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Built-in free lookups</label>
+          <div class="hint">BGPView provides ASN/prefix data and RDAP provides authoritative registration data. They run automatically when reachable.</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <button class="toggle-btn" id="useVTSwitch" type="button" aria-pressed="true">
+            <span class="toggle-label">Use VirusTotal</span>
+            <span class="toggle-state">On</span>
+          </button>
+        </div>
+        <div class="field">
+          <button class="toggle-btn" id="useABSwitch" type="button" aria-pressed="true">
+            <span class="toggle-label">Use AbuseIPDB</span>
+            <span class="toggle-state">On</span>
+          </button>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:2;">
+          <label for="corsProxy">CORS proxy prefix (optional — required for most browsers)</label>
+          <input type="text" id="corsProxy" placeholder="e.g. https://corsproxy.io/?url=">
+          <div class="hint">VirusTotal and AbuseIPDB don't send CORS headers, so browsers block direct requests to them (you'll see "Failed to fetch"). Set a proxy prefix here and requests will be sent as <code>prefix + encodeURIComponent(targetUrl)</code>. You can self-host a tiny proxy (safest — your key never leaves your infra) or use a public one (your API key will pass through that third party — only do this with a throwaway/low-privilege key).</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" id="saveKeysBtn">Save keys</button>
+        <button class="btn" id="testVTBtn">Test VirusTotal</button>
+        <button class="btn" id="testABBtn">Test AbuseIPDB</button>
+        <button class="btn" id="exportSettingsBtn">Export settings</button>
+        <button class="btn" id="importSettingsBtn">Import settings</button>
+        <button class="btn" id="clearCacheBtn">Clear cache</button>
+        <button class="btn danger" id="resetSettingsBtn">Reset settings</button>
+        <input id="settingsFileInput" type="file" accept="application/json" hidden>
+        <span class="hint" id="usageCounter" style="margin-left:auto;">VT requests today: 0</span>
+      </div>
+      <div id="settingsMsg" class="hint" style="margin-top:8px;"></div>
+    </div>
+  </section>
+
+  <!-- ============ SINGLE LOOKUP ============ -->
+  <section class="panel" id="panelSingle">
+    <div class="panel-head" data-target="panelSingle">
+      <h2>◎ Quick Lookup</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="myIpDisplay">Your public IP</label>
+          <input type="text" id="myIpDisplay" readonly value="Detecting…">
+        </div>
+        <div class="field" style="flex:2;">
+          <label for="singleInput">IP address or domain</label>
+          <input type="text" id="singleInput" placeholder="e.g. 8.8.8.8 or example.com (Enter to check)">
+        </div>
+        <div class="field" style="flex:0 0 auto;align-self:flex-end;">
+          <button class="btn primary" id="singleCheckBtn">Check</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BULK INPUT ============ -->
+  <section class="panel" id="panelBulk">
+    <div class="panel-head" data-target="panelBulk">
+      <h2>▤ Bulk Input</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="numToProcess">Number of IPs to process (max)</label>
+          <input type="number" id="numToProcess" min="1" max="1000" value="10">
+        </div>
+        <div class="field">
+          <label for="batchSize">Batch size</label>
+          <select id="batchSize">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="toggle" style="margin-top:22px;"><span class="switch" id="autoCheckSwitch"></span> Auto-Check mode</label>
+        </div>
+      </div>
+
+      <div class="dropzone" id="dropzone">
+        Drop a .txt or .csv file here, or click to upload
+        <input type="file" id="fileInput" accept=".txt,.csv" hidden>
+      </div>
+
+      <label for="ipInput" style="display:block;font-size:11.5px;color:var(--text-dim);margin-bottom:6px;font-weight:600;">
+        Or paste IPs / domains / CIDR / ranges — one per line, comma, or space separated
+      </label>
+      <textarea id="ipInput" placeholder="8.8.8.8&#10;1.1.1.1&#10;192.168.1.0/28&#10;10.0.0.1-10.0.0.5&#10;example.com"></textarea>
+
+      <div class="count-strip">
+        <span>Unique parsed: <b id="uniqueCount">0</b></span>
+        <span>Limit: <b>1000</b></span>
+        <span id="limitWarning" class="hint" style="color:var(--malicious);" hidden>List exceeds 1000 — trim before processing.</span>
+      </div>
+
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn" id="clearAllBtn">Clear all</button>
+        <button class="btn primary" id="startBtn" title="Ctrl+Enter in bulk box">Start check</button>
+        <button class="btn" id="pauseBtn" disabled>Pause</button>
+        <button class="btn danger" id="stopBtn" disabled>Stop</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROGRESS ============ -->
+  <section class="panel" id="panelProgress">
+    <div class="panel-head" data-target="panelProgress">
+      <h2>⟳ Progress</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="panel-body">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-meta">
+        <span id="progressText">0 / 0 processed</span>
+        <span id="progressEta">—</span>
+      </div>
+      <div class="log-console" id="logConsole" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- ============ SUMMARY ============ -->
+  <section class="panel" id="panelSummary">
+    <div class="panel-head" data-target="panelSummary">
+      <h2>▦ Summary</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="panel-body">
+      <div class="cards">
+        <div class="card"><div class="k">Total checked</div><div class="v" id="sTotal">0</div></div>
+        <div class="card"><div class="k">No detections reported (VT)</div><div class="v" id="sClean">0</div></div>
+        <div class="card"><div class="k">Flagged (VT)</div><div class="v mal" id="sFlagged">0</div></div>
+        <div class="card"><div class="k">Average threat score</div><div class="v" id="sAvg">0</div></div>
+        <div class="card"><div class="k">Highest risk</div><div class="v mal" id="sHigh">—</div><div class="sub2" id="sHighIp"></div></div>
+        <div class="card"><div class="k">Lowest score</div><div class="v" id="sLow">—</div><div class="sub2" id="sLowIp"></div></div>
+        <div class="card"><div class="k">Processing speed</div><div class="v" id="sSpeed">0/s</div></div>
+        <div class="card"><div class="k">VT quota today</div><div class="v" id="sVtUsage">0</div><div class="sub2" id="sVtRemaining">500 left</div></div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-box"><canvas id="pieChart"></canvas></div>
+        <div class="chart-box"><canvas id="barChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VISUALIZATIONS ============ -->
+  <section class="panel" id="panelViz">
+    <div class="panel-head" data-target="panelViz">
+      <h2>◆ Visualizations</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="panel-body">
+      <div class="viz-card viz-wide">
+        <h3>World map</h3>
+        <svg id="worldMap" class="viz-map" role="img" aria-label="World map of checked IP locations"></svg>
+        <div class="subtle" id="worldMapHint">Points reflect available geolocation coordinates.</div>
+      </div>
+      <div class="viz-grid">
+        <div class="viz-card">
+          <h3>ASN distribution</h3>
+          <canvas id="asnChart"></canvas>
+        </div>
+        <div class="viz-card">
+          <h3>Timeline</h3>
+          <canvas id="timelineChart"></canvas>
+        </div>
+        <div class="viz-card">
+          <h3>Risk heatmap</h3>
+          <svg id="riskHeatmap" class="viz-heatmap" role="img" aria-label="Risk heatmap by country and risk level"></svg>
+          <div class="subtle" id="riskHeatmapHint">Hover a cell for counts.</div>
+        </div>
+        <div class="viz-card">
+          <h3>Detection trends</h3>
+          <canvas id="trendChart"></canvas>
+        </div>
+        <div class="viz-card">
+          <h3>Country statistics</h3>
+          <canvas id="countryChart"></canvas>
+        </div>
+        <div class="viz-card">
+          <h3>Provider comparison</h3>
+          <canvas id="providerChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS TABLE ============ -->
+  <section class="panel" id="panelTable">
+    <div class="panel-head" data-target="panelTable">
+      <h2>▥ Results</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="panel-body">
+      <div class="table-tools">
+        <div class="left">
+          <input type="text" class="search-box" id="searchBox" placeholder="Search IP, domain, ISP, country…">
+          <span class="pill active" data-filter="all">All</span>
+          <span class="pill" data-filter="clean">No detections</span>
+          <span class="pill" data-filter="flagged">Flagged</span>
+          <span class="pill" data-filter="error">Errors</span>
+        </div>
+        <div class="right">
+          <button class="btn danger" id="clearResultsBtn">Clear results</button>
+          <button class="btn" id="copyTableBtn">Copy all (TSV)</button>
+          <button class="btn" id="exportCsvBtn">Export Excel (CSV)</button>
+          <button class="btn" id="exportSummaryBtn">Executive summary</button>
+          <button class="btn" id="exportJsonBtn">Export JSON</button>
+          <button class="btn" id="exportMarkdownBtn">Markdown</button>
+          <button class="btn" id="exportHtmlBtn">HTML report</button>
+          <button class="btn" id="exportPdfBtn">PDF report</button>
+          <button class="btn" id="exportStixBtn">STIX 2.1</button>
+          <button class="btn" id="exportOpenIocBtn">OpenIOC</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="results" id="resultsTable">
+          <thead>
+            <tr>
+              <th data-key="ip">IP Address</th>
+              <th data-key="domain">Domain</th>
+              <th data-key="country">Country</th>
+              <th data-key="region">Region</th>
+              <th data-key="city">City</th>
+              <th data-key="isp">ISP</th>
+              <th data-key="coords">Coordinates</th>
+              <th data-key="vtDetections">VT Mal/Sus/Harm/Undet</th>
+              <th data-key="vtRep">VT Reputation</th>
+              <th data-key="vtVerdict">VT Verdict</th>
+              <th data-key="score">Threat Score</th>
+              <th data-key="risk">Risk Level</th>
+              <th data-key="sources">Threat Sources</th>
+              <th data-key="lastReported">Last Reported</th>
+              <th data-key="status">Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </section>
+
+  <!-- ============ ANALYST WORKSPACE ============ -->
+  <section class="panel collapsed" id="panelAnalyst">
+    <div class="panel-head" data-target="panelAnalyst">
+      <h2>Analyst workspace</h2><span class="chev">▾</span>
+    </div>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field"><label for="noteIp">IP for note / tags</label><input id="noteIp" type="text" placeholder="Select or enter an IP"></div>
+        <div class="field"><label for="noteTags">Tags (comma separated)</label><input id="noteTags" type="text" placeholder="e.g. phishing, watchlist"></div>
+        <div class="field"><label for="noteText">Investigation note</label><input id="noteText" type="text" placeholder="Short analyst note"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="saveNoteBtn">Save note & tags</button>
+        <button class="btn" id="saveSearchBtn">Save current search</button>
+        <button class="btn" id="loadSearchBtn">Load saved search</button>
+        <button class="btn" id="saveSessionBtn">Save investigation session</button>
+        <button class="btn" id="loadSessionBtn">Load latest session</button>
+      </div>
+      <div class="field-row" style="margin-top:14px;">
+        <div class="field"><label for="customFilter">Custom filter</label><select id="customFilter"><option value="all">All results</option><option value="tagged">Tagged</option><option value="noted">Has notes</option><option value="intel">Has intelligence</option></select></div>
+        <div class="field"><label for="secondarySort">Secondary sort</label><select id="secondarySort"><option value="">None</option><option value="score">Threat score</option><option value="country">Country</option><option value="status">Status</option></select></div>
+        <div class="field"><label>Column chooser</label><div class="hint" id="columnChooser"></div></div>
+      </div>
+      <div class="hint" id="workflowMsg" style="margin-top:8px;"></div>
+    </div>
+  </section>
+
+  <!-- ============ README ============ -->
+  <section class="panel collapsed" id="panelReadme">
+    <div class="panel-head" data-target="panelReadme">
+      <h2>? How this works</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="panel-body readme">
+      <h3>Setup</h3>
+      <p>Open <code>v1.html</code> in any modern browser. Nothing to install. API keys are kept only for the current browser session and are cleared when the session ends. They are sent only to VirusTotal / AbuseIPDB, or to the CORS proxy you explicitly configure.</p>
+      <div class="callout">
+        <b>Browser CORS note:</b> VirusTotal and AbuseIPDB do not send CORS headers, so browsers block direct <code>fetch()</code> calls to them from a page like this one — you'll see "Blocked by browser (CORS)" or "Failed to fetch" even with a valid key. This isn't a bug in the key or the request; it's the browser refusing to hand back the response. Fix it by setting a <b>CORS proxy prefix</b> in Settings, for example:
+        <ul>
+          <li>A public proxy for quick testing, e.g. <code>https://corsproxy.io/?url=</code> — simple, but your API key passes through that third party, so only use a throwaway/low-privilege key this way.</li>
+          <li>A tiny self-hosted proxy (safest) — a one-file Cloudflare Worker, Vercel edge function, or Node/Express endpoint that forwards the request server-side and adds permissive CORS headers back to the browser. This keeps your key off any third party.</li>
+        </ul>
+        Geolocation (ipapi.co) and DNS resolution (dns.google) are CORS-friendly already and work without a proxy.
+      </div>
+      <h3>Bulk input format</h3>
+      <p>This tool checks <b>IP addresses and domains only</b> — file hashes, URLs, or other indicator types (e.g. a 64-character SHA-256 string) aren't recognized and are skipped with a warning in the log. Use VirusTotal directly for hash/file lookups.</p>
+      <h3>Bulk input</h3>
+      <ul>
+        <li>Paste IPs one per line, or comma/space separated.</li>
+        <li>CIDR blocks (e.g. <code>192.168.1.0/28</code>) and hyphen ranges (e.g. <code>10.0.0.1-10.0.0.5</code>) are auto-expanded.</li>
+        <li>Domains are resolved to an IP via Google's DNS-over-HTTPS API before checking.</li>
+        <li>Duplicates are removed automatically. Lists over 1000 unique entries are blocked from processing.</li>
+      </ul>
+      <h3>Scoring</h3>
+      <p>Threat Score is calculated from VirusTotal malicious/suspicious engine detections, with an optional AbuseIPDB contribution. A result with zero VT detections is shown as <b>No detections reported</b>, not “safe”; it is not a guarantee that an IP is harmless. If VirusTotal cannot be reached, the score is shown as unavailable. Results are cached for 1 hour per IP.</p>
+      <h3>Rate limits</h3>
+      <p>VirusTotal's public tier allows 4 requests/minute — the queue throttles automatically. Change the tier in Settings if you have a premium key.</p>
+    </div>
+  </section>
+
+  <div class="footer-note">All processing happens locally in your browser. No analytics, no tracking, no server component.</div>
+</div>
+
+<!-- Row detail template -->
+<template id="detailTemplate"></template>
+
+<script type="module" src="./main.js?v=20260717"></script>
+</body>
+</html>
+

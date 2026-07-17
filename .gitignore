@@ -1,0 +1,17 @@
+# Generated reports
+*.xlsx
+
+# Generated exports
+*.csv
+*.pdf
+
+# Logs
+*.log
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Editors
+.vscode/
+.idea/

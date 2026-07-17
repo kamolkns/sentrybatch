@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sentry Batch">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#45D9C9"/>
+      <stop offset="100%" stop-color="#0E8F82"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="#0A0E13"/>
+  <rect x="56" y="56" width="400" height="400" rx="92" fill="url(#g)"/>
+  <rect x="96" y="114" width="320" height="40" rx="20" fill="#06110F" opacity=".18"/>
+  <text x="256" y="296" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="128" font-weight="700" fill="#06110F">IP</text>
+  <circle cx="356" cy="162" r="14" fill="#06110F" opacity=".28"/>
+  <circle cx="392" cy="202" r="9" fill="#06110F" opacity=".28"/>
+  <circle cx="134" cy="344" r="11" fill="#06110F" opacity=".22"/>
+</svg>
