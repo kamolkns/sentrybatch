@@ -38,6 +38,7 @@ const state = {
   renderQueued: false,
   chartsQueued: false,
   vtCooldownUntil: 0,
+  abortController: null,
   vizVersion: 0,
 };
 
@@ -604,43 +605,6 @@ function extractVTData(data){
     regionalInternetRegistry: attrs.regional_internet_registry || '',
     lastAnalysisDate: attrs.last_analysis_date ? new Date(attrs.last_analysis_date*1000).toISOString() : '',
     lastModificationDate: attrs.last_modification_date ? new Date(attrs.last_modification_date*1000).toISOString() : '',
-
-function extractVTData(data){
-  const attrs = (data && data.data && data.data.attributes) || {};
-  const stats = Object.assign({malicious:0,suspicious:0,harmless:0,undetected:0,timeout:0}, attrs.last_analysis_stats || {});
-  const total = Object.values(stats).reduce((a,b)=>a+b,0) || 1;
-  const detectionRatio = (stats.malicious / total) * 100;
-  const reputation = attrs.reputation || 0;
-  const normalizedRep = ((reputation + 100) / 200) * 100;
-
-  // Every engine result, not just the malicious ones — used for the full detail table.
-  const allEngines = [];
-  const flaggedEngines = [];
-  if(attrs.last_analysis_results){
-    for(const [engine, r] of Object.entries(attrs.last_analysis_results)){
-      const row = { engine, category: r.category || '', result: r.result || '', method: r.method || '' };
-      allEngines.push(row);
-      if(r.category === 'malicious' || r.category === 'suspicious') flaggedEngines.push(row);
-    }
-  }
-  flaggedEngines.sort((a,b)=> (a.category==='malicious'?0:1) - (b.category==='malicious'?0:1));
-
-  const votes = attrs.total_votes || { harmless:0, malicious:0 };
-  const cert = attrs.last_https_certificate;
-  const certIssuer = cert && cert.issuer ? (cert.issuer.O || cert.issuer.CN || '') : '';
-  const whois = attrs.whois || '';
-  let country = (attrs.country || '').trim();
-  if(!country && whois) country = parseCountryFromWhois(whois);
-
-  return {
-    detectionRatio, normalizedRep, stats, reputation,
-    country, continent: attrs.continent || '',
-    asOwner: attrs.as_owner || '', asn: attrs.asn || '',
-    network: attrs.network || '', whois,
-    whoisDate: attrs.whois_date ? new Date(attrs.whois_date*1000).toISOString() : '',
-    regionalInternetRegistry: attrs.regional_internet_registry || '',
-    lastAnalysisDate: attrs.last_analysis_date ? new Date(attrs.last_analysis_date*1000).toISOString() : '',
-    lastModificationDate: attrs.last_modification_date ? new Date(attrs.last_modification_date*1000).toISOString() : '',
     tags: attrs.tags || [],
     votes: { harmless: votes.harmless||0, malicious: votes.malicious||0 },
     certIssuer,
@@ -808,7 +772,7 @@ function clearAllCache(){
 /* =========================================================================
    9. PROCESS SINGLE IP
    ========================================================================= */
-async function processSingleIP(ip, domainLabel, onStatus){
+async function processSingleIP(ip, domainLabel, onStatus, signal){
   const setStatus = (status, detail) => {
     if(onStatus) onStatus(status, detail);
   };
@@ -819,7 +783,7 @@ async function processSingleIP(ip, domainLabel, onStatus){
     // Old cached rows may predate the country fallbacks. Refresh only the
     // missing location without repeating the paid/restricted reputation calls.
     if(countryIsMissing(cached)){
-      const geo = await fetchGeolocation(ip);
+      const geo = await fetchGeolocation(ip, signal);
       const countryFields = resolveCountryFields({ vt: cached.vtFull, ab: cached.abFull, geo });
       if(countryFields.countryDisplay !== 'Unknown'){
         cached.country = countryFields.countryDisplay;
@@ -843,7 +807,7 @@ async function processSingleIP(ip, domainLabel, onStatus){
   const threatFoxKey = $('threatFoxKey').value.trim();
 
   setStatus('Processing', 'Fetching geolocation…');
-  const geoPromise = fetchGeolocation(ip);
+  const geoPromise = fetchGeolocation(ip, signal);
 
   let vt = null, ab = null, errors = [];
 
@@ -857,11 +821,12 @@ async function processSingleIP(ip, domainLabel, onStatus){
     }
     setStatus('Processing', 'Querying VirusTotal…');
     try{
-      const data = await checkVirusTotalIP(ip, vtKey);
+      const data = await checkVirusTotalIP(ip, vtKey, 0, signal);
       state.vtApiConnected = true;
       updateApiStatusBar();
       return data;
     }catch(e){
+      if(signal && signal.aborted) return { error: 'Aborted', aborted: true };
       if(/401|403|CORS|Blocked|fetch/i.test(e.message)) state.vtApiConnected = false;
       updateApiStatusBar();
       errors.push('VT: ' + e.message);
@@ -873,11 +838,12 @@ async function processSingleIP(ip, domainLabel, onStatus){
     if(!useAB || !abKey) return null;
     setStatus('Processing', 'Querying AbuseIPDB…');
     try{
-      const data = await checkAbuseIPDB(ip, abKey);
+      const data = await checkAbuseIPDB(ip, abKey, signal);
       state.abApiConnected = true;
       updateApiStatusBar();
       return data;
     }catch(e){
+      if(signal && signal.aborted) return { error: 'Aborted', aborted: true };
       if(/401|403|CORS|Blocked|fetch/i.test(e.message)) state.abApiConnected = false;
       updateApiStatusBar();
       errors.push('AbuseIPDB: ' + e.message);
@@ -886,7 +852,7 @@ async function processSingleIP(ip, domainLabel, onStatus){
   }
 
   const [geo, vtResult, abResult, intelligence] = await Promise.all([
-    geoPromise, runVT(), runAB(), lookupTierOne(ip, { otxKey, threatFoxKey, proxyPrefix: $('corsProxy').value.trim() })
+    geoPromise, runVT(), runAB(), lookupTierOne(ip, { otxKey, threatFoxKey, proxyPrefix: $('corsProxy').value.trim(), signal })
   ]);
   vt = vtResult;
   ab = abResult;
@@ -952,9 +918,12 @@ async function processQueue(ips, domainMap, batchSize){
   state.startTime = Date.now();
   updateProgress(0, total);
 
-  while(queue.length && !state.stopped){
+  state.abortController = new AbortController();
+  const signal = state.abortController.signal;
+
+  while(queue.length && !state.stopped && !signal.aborted){
     while(state.paused && !state.stopped){ await sleep(300); }
-    if(state.stopped) break;
+    if(state.stopped || signal.aborted) break;
 
     const batch = queue.splice(0, adaptiveWorkerCount(batchSize));
     updateRowsStatus(batch, 'Processing', 'Starting batch…');
@@ -963,7 +932,7 @@ async function processQueue(ips, domainMap, batchSize){
       try{
         const r = await processSingleIP(ip, domainMap.get(ip), (status, detail) => {
           setRowStatus(ip, status, detail);
-        });
+        }, signal);
         return r;
       }catch(e){
         return { ip, domain: domainMap.get(ip)||'', status:'Failed', statusDetail: e.message, errors:[e.message], score:null, riskLabel:'Not available', riskCls:'error', vtFlagged:false, vtVerdict:'—', sources:'', country:'Unknown',region:'',city:'',isp:'',coords:'',vtDetections:'—',vtRep:'—',lastReported:'' };
@@ -988,6 +957,7 @@ async function processQueue(ips, domainMap, batchSize){
     }
   }
 
+  state.abortController = null;
   state.processing = false;
   $('startBtn').disabled = false;
   $('pauseBtn').disabled = true;
@@ -1606,8 +1576,11 @@ function getFilteredSorted(){
       // For numeric keys (score), keep null distinct from 0:
       // null sorts below any real number so "no data" rows sink to the bottom.
       if(state.sortKey === 'score' || state.sortKey === 'vtRep'){
-        const an = av == null ? -Infinity : Number(av);
-        const bn = bv == null ? -Infinity : Number(bv);
+        const aBad = av == null || av === '' || isNaN(av);
+        const bBad = bv == null || bv === '' || isNaN(bv);
+        if(aBad !== bBad) return aBad ? 1 : -1;
+        if(aBad && bBad) return 0;
+        const an = Number(av), bn = Number(bv);
         if(an !== bn) return (an < bn ? -1 : 1) * state.sortDir;
       } else {
         if(typeof av === 'string') av = av.toLowerCase();
@@ -1883,7 +1856,7 @@ async function retrySingle(ip){
 }
 
 /* sorting */
-document.querySelectorAll('table.results thead th').forEach(th=>{
+document.querySelectorAll('table.results thead th[data-key]').forEach(th=>{
   th.addEventListener('click', ()=>{
     const key = th.dataset.key;
   if(state.sortKey === key) state.sortDir *= -1; else { state.sortKey = key; state.sortDir = 1; }
@@ -2614,6 +2587,7 @@ function clearSingleResult(ip){
 }
 
 function clearAllResults(){
+  if(state.processing) return;
   if(!state.results.size) return;
   if(!confirm('Clear all results from the table?')) return;
   state.results.clear();
@@ -2715,6 +2689,7 @@ function handleFile(file){
 }
 
 $('clearAllBtn').addEventListener('click', ()=>{
+  if(state.processing) return;
   $('ipInput').value = '';
   state.results.clear(); state.order = [];
   renderTable(); updateSummary();
@@ -2765,6 +2740,10 @@ $('pauseBtn').addEventListener('click', ()=>{
 $('stopBtn').addEventListener('click', ()=>{
   state.stopped = true; state.paused = false;
   $('pauseBtn').textContent = 'Pause';
+  if(state.abortController){
+    state.abortController.abort();
+    state.abortController = null;
+  }
   log('Stopped by user.', 'l-warn');
 });
 
@@ -2865,12 +2844,16 @@ function applySettingsImport(payload){
   if(settings.useVT != null) lsSet(LS_KEYS.useVT, String(settings.useVT));
   if(settings.useAB != null) lsSet(LS_KEYS.useAB, String(settings.useAB));
   if(settings.corsProxy != null) lsSet(LS_KEYS.corsProxy, String(settings.corsProxy));
-  if(Array.isArray(settings.hiddenColumns)) writeJson(LS_KEYS.tableColumns, settings.hiddenColumns);
+  if(Array.isArray(settings.hiddenColumns)){
+    writeJson(LS_KEYS.tableColumns, settings.hiddenColumns);
+    state.hiddenColumns = new Set(settings.hiddenColumns);
+  }
   if(settings.sortStack && typeof settings.sortStack === 'object') writeJson(LS_KEYS.sortStack, settings.sortStack);
   loadSettings();
   initKeyVisibilityControls();
   applyTheme(lsGet(LS_KEYS.theme, 'dark'));
   renderColumnChooser();
+  renderTable();
   updateApiStatusBar();
 }
 
