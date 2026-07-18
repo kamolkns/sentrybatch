@@ -12,6 +12,24 @@
 Thumbs.db
 Desktop.ini
 
+# macOS
+.DS_Store
+
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# Temp files
+*.tmp
+*.bak
+*.orig
+
+# Python
+__pycache__/
+*.pyc
+
+# Node (if added later)
+node_modules/

@@ -1,8 +1,10 @@
 const CACHE_NAME = 'sentry-batch-shell-v2';
 const APP_SHELL = [
-  './v1.html',
+  './index.html',
+  './guard.js',
   './main.js',
   './api.js',
+  './utils.js',
   './cache.js',
   './charts.js',
   './config.js',
@@ -90,10 +92,10 @@ self.addEventListener('fetch', event => {
       try{
         const fresh = await fetch(request);
         const cache = await caches.open(CACHE_NAME);
-        cache.put('./v1.html', fresh.clone());
+        cache.put('./index.html', fresh.clone());
         return fresh;
       }catch(e){
-        const cached = await caches.match('./v1.html');
+        const cached = await caches.match('./index.html');
         return cached || Response.error();
       }
     })());

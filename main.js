@@ -292,7 +292,7 @@ function scheduleTableRender(){
 function lsGet(key, fallback){ return getStored(key, fallback); }
 function lsSet(key, val){
   if(setStored(key, val)) return true;
-  log('Storage full or unavailable — evicting oldest cache entries.', 'l-warn');
+  log('Local storage is full. Evicting oldest cached results to free space.', 'l-warn');
   evictOldCache();
   return setStored(key, val);
 }
@@ -547,7 +547,7 @@ async function checkVirusTotalIP(ip, apiKey, attempt, signal){
       if(attempt < 3){
         const backoff = 15000 * Math.pow(2, attempt);
         state.vtCooldownUntil = Date.now() + backoff;
-        log(`VT 429 rate limited on ${ip} — backing off ${backoff/1000}s`, 'l-warn');
+        log(`VT rate limited (429) on ${ip} — pausing ${backoff/1000}s before retry`, 'l-warn');
         await sleep(backoff);
         return checkVirusTotalIP(ip, apiKey, attempt+1, signal);
       }
@@ -949,7 +949,7 @@ async function processQueue(ips, domainMap, batchSize){
     updateProgress(state.processedCount, total);
     batchResults.forEach(r=>{
       const cls = (r.status==='Failed' || r.status==='Error') ? 'l-err' : (r.errors && r.errors.length ? 'l-warn':'');
-      log(`Processing ${r.ip}${r.domain?(' ('+r.domain+')'):''}… ${r.status}${r.statusDetail ? ' — '+r.statusDetail : ''} — Score: ${r.score} (${r.riskLabel})`, cls);
+      log(`${r.ip}${r.domain?(' ('+r.domain+')'):''} — ${r.status}${r.statusDetail ? ' — '+r.statusDetail : ''} — Score ${r.score} (${r.riskLabel})`, cls);
     });
 
     if(queue.length){
@@ -964,8 +964,10 @@ async function processQueue(ips, domainMap, batchSize){
   $('stopBtn').disabled = true;
   setNetStatus(state.stopped ? 'Stopped' : 'Idle', false);
   if(!state.stopped){
-    log(`Batch complete — ${state.processedCount}/${total} processed.`, '');
+    log(`Batch completed successfully — ${state.processedCount}/${total} IPs processed.`, '');
     saveSessionToHistory(total);
+  } else {
+    log('All pending requests terminated — batch cancelled.', 'l-warn');
   }
 }
 
@@ -1175,13 +1177,13 @@ function updateCharts(noDetections, flagged, all){
   if(pieChart) pieChart.destroy();
   pieChart = new Chart($('pieChart'), {
     type:'doughnut',
-    data:{ labels:['No detections (VT)','Flagged (VT)'], datasets:[{ data:[noDetections, flagged], backgroundColor:['#3DD68C','#F0576B'], borderWidth:0 }] },
-    options:{ plugins:{ legend:{ labels:{ color:textColor, font:{family:'Inter'} } }, title:{ display:true, text:'VirusTotal detection status', color:textColor } }, maintainAspectRatio:false }
+    data:{ labels:['No detections (VT)','Flagged (VT)'], datasets:[{ data:[noDetections, flagged], backgroundColor:['#4ec9b0','#f14c4c'], borderWidth:0 }] },
+    options:{ plugins:{ legend:{ labels:{ color:textColor } }, title:{ display:true, text:'VirusTotal detection status', color:textColor } }, maintainAspectRatio:false }
   });
   if(barChart) barChart.destroy();
   barChart = new Chart($('barChart'), {
     type:'bar',
-    data:{ labels:['No detections','Low concern','Suspicious','Malicious'], datasets:[{ data:buckets, backgroundColor:['#3DD68C','#E8C339','#F0913E','#F0576B'] }] },
+    data:{ labels:['No detections','Low concern','Suspicious','Malicious'], datasets:[{ data:buckets, backgroundColor:['#4ec9b0','#dcdcaa','#cca700','#f14c4c'] }] },
     options:{
       plugins:{ legend:{display:false}, title:{ display:true, text:'Risk Distribution', color:textColor } },
       scales:{ x:{ ticks:{color:textColor}, grid:{color:gridColor} }, y:{ ticks:{color:textColor}, grid:{color:gridColor}, beginAtZero:true } },
@@ -1798,7 +1800,11 @@ function buildDetailHtml(r){
 function renderPagination(totalRows, totalPages){
   const p = $('pagination');
   p.innerHTML = '';
-  if(totalRows === 0){ p.innerHTML = '<span>No results yet.</span>'; return; }
+  if(totalRows === 0){
+    const msg = state.order.length ? 'No IPs match the current filters.' : 'No results yet. Paste IPs above to begin.';
+    p.innerHTML = `<span>${msg}</span>`;
+    return;
+  }
   const prev = el('button','',''); prev.textContent='‹ Prev'; prev.disabled = state.page<=1;
   prev.onclick = ()=>{ state.page--; state.virtualStart=0; renderTable(); };
   const next = el('button','',''); next.textContent='Next ›'; next.disabled = state.page>=totalPages;
@@ -1840,7 +1846,7 @@ document.addEventListener('click', (e)=>{
 });
 
 async function retrySingle(ip){
-  log(`Retrying ${ip}...`, '');
+  log(`Retrying ${ip} (bypassing cache)...`, '');
   const r = state.results.get(ip);
   const domainLabel = r ? r.domain : '';
   setRowStatus(ip, 'Processing', 'Retrying (bypass cache)…');
@@ -1849,9 +1855,9 @@ async function retrySingle(ip){
     const result = await processSingleIP(ip, domainLabel, (status, detail) => setRowStatus(ip, status, detail));
     state.results.set(ip, result);
     renderTable(); updateSummary();
-    log(`Retry ${ip} → ${result.status}${result.statusDetail ? ' — '+result.statusDetail : ''} — Score ${result.score}`, (result.status==='Failed'||result.status==='Error')?'l-err':'');
+    log(`${ip} retry completed — ${result.status}${result.statusDetail ? ' — '+result.statusDetail : ''} — Score ${result.score}`, (result.status==='Failed'||result.status==='Error')?'l-err':'');
   }catch(e){
-    log(`Retry failed for ${ip}: ${e.message}`, 'l-err');
+    log(`${ip} retry failed: ${e.message}`, 'l-err');
   }
 }
 
@@ -2298,7 +2304,7 @@ function buildHtmlReport(records, summary, autoPrint = false){
                   <th>Last Reported</th>
                 </tr>
               </thead>
-              <tbody>${rowsHtml || '<tr><td colspan="10">No rows to report.</td></tr>'}</tbody>
+              <tbody>${rowsHtml || '<tr><td colspan="10">No results to report yet.</td></tr>'}</tbody>
             </table>
           </div>
         </div>
@@ -2311,7 +2317,7 @@ function buildHtmlReport(records, summary, autoPrint = false){
 }
 
 function buildExecutiveSummaryText(summary){
-  if(!summary.total) return 'No results are available for reporting yet.';
+  if(!summary.total) return 'No results to report yet.';
   const parts = [
     `${summary.total} results`,
     `${summary.completed} completed`,
@@ -2523,10 +2529,11 @@ ${iocs || '    <Indicator operator="OR"/>'}
 function exportCurrentReport(kind){
   const { records, rows } = getReportRows();
   if(!rows.length){
-    workflowMessage('No rows to export.');
+    workflowMessage('No results to export yet.');
     return;
   }
   const summary = buildExecutiveSummary(records);
+  log(`Generating ${kind.toUpperCase()} report...`, '');
   if(kind === 'json'){
     downloadTextFile(`sentry-batch-report-${todayKey()}.json`, buildJsonReport(records, summary), 'application/json;charset=utf-8', false);
   }else if(kind === 'summary'){
@@ -2546,6 +2553,7 @@ function exportCurrentReport(kind){
   }else if(kind === 'csv'){
     downloadTextFile(`sentry-batch-report-${todayKey()}.csv`, buildCsvReport(records), 'text/csv;charset=utf-8');
   }
+  log(`${kind.toUpperCase()} report generated.`, '');
 }
 
 async function copyTextToClipboard(text, btn){
@@ -2601,8 +2609,10 @@ function clearAllResults(){
 
 $('copyTableBtn').addEventListener('click', async ()=>{
   const rows = getFilteredSorted();
-  if(!rows.length){ flashMsg('copyTableBtn','No rows'); return; }
+  if(!rows.length){ flashMsg('copyTableBtn','No results to copy'); return; }
+  log('Copying table to clipboard...', '');
   await copyRowsToClipboard(rows, $('copyTableBtn'));
+  log('Table copied to clipboard.', '');
 });
 
 $('clearResultsBtn').addEventListener('click', clearAllResults);
@@ -2704,13 +2714,13 @@ $('clearAllBtn').addEventListener('click', ()=>{
 async function startProcessing(){
   if(state.processing) return;
   const raw = $('ipInput').value;
-  if(!raw.trim()){ log('Nothing to process — paste or upload IPs first.', 'l-warn'); return; }
+  if(!raw.trim()){ log('Enter or paste IP addresses above, then start a check.', 'l-warn'); return; }
 
   setNetStatus('Parsing input…', true);
   const { ips, domainMap, warnings, exceeded } = await parseIPList(raw);
   warnings.forEach(w=>log(w,'l-warn'));
-  if(exceeded){ log('List exceeded 1000 unique entries — trimmed to first 1000.', 'l-warn'); }
-  if(!ips.length){ log('No valid IPs found in input.', 'l-err'); setNetStatus('Idle', false); return; }
+  if(exceeded){ log('Input exceeds 1000 IP limit; only the first 1000 will be processed.', 'l-warn'); }
+  if(!ips.length){ log('Could not find any valid IP addresses or domains in the input.', 'l-err'); setNetStatus('Idle', false); return; }
 
   const maxToProcess = Math.min(parseInt($('numToProcess').value,10) || ips.length, ips.length, 1000);
   const finalIps = ips.slice(0, maxToProcess);
@@ -2725,7 +2735,7 @@ async function startProcessing(){
   state.processing = true; state.paused = false; state.stopped = false;
   $('startBtn').disabled = true; $('pauseBtn').disabled = false; $('stopBtn').disabled = false;
   setNetStatus(`Processing… (VT ${vtQuotaRemaining()}/${vtDailyLimit()} left today)`, true);
-  log(`Starting check of ${finalIps.length} IPs in batches of ${batchSize}.`, '');
+  log(`Batch started — ${finalIps.length} IPs queued, processing ${batchSize} at a time.`, '');
 
   await processQueue(finalIps, domainMap, batchSize);
 }
@@ -2735,7 +2745,7 @@ $('pauseBtn').addEventListener('click', ()=>{
   state.paused = !state.paused;
   $('pauseBtn').textContent = state.paused ? 'Resume' : 'Pause';
   setNetStatus(state.paused ? 'Paused' : `Processing… (VT ${vtQuotaRemaining()}/${vtDailyLimit()} left today)`, !state.paused);
-  log(state.paused ? 'Paused by user.' : 'Resumed.', '');
+  log(state.paused ? 'Batch paused by user.' : 'Batch resumed.', '');
 });
 $('stopBtn').addEventListener('click', ()=>{
   state.stopped = true; state.paused = false;
@@ -2744,7 +2754,7 @@ $('stopBtn').addEventListener('click', ()=>{
     state.abortController.abort();
     state.abortController = null;
   }
-  log('Stopped by user.', 'l-warn');
+  log('Cancelling batch — terminating active requests...', 'l-warn');
 });
 
 /* =========================================================================
@@ -2788,7 +2798,7 @@ $('singleCheckBtn').addEventListener('click', async ()=>{
   const result = await processSingleIP(ip, domainLabel, (status, detail) => setRowStatus(ip, status, detail));
   state.results.set(ip, result);
   renderTable(); updateSummary();
-  log(`Quick lookup ${ip} → ${result.status}${result.statusDetail ? ' — '+result.statusDetail : ''} — Score ${result.score} (${result.riskLabel})`, (result.status==='Failed'||result.status==='Error')?'l-err':'');
+  log(`Quick lookup ${ip} — ${result.status}${result.statusDetail ? ' — '+result.statusDetail : ''} — Score ${result.score} (${result.riskLabel})`, (result.status==='Failed'||result.status==='Error')?'l-err':'');
   $('singleCheckBtn').disabled = false;
   setNetStatus('Idle', false);
 });
@@ -2921,6 +2931,7 @@ $('exportSettingsBtn').addEventListener('click', ()=>{
   const data = collectSettingsExport();
   downloadTextFile(`sentry-batch-settings-${todayKey()}.json`, JSON.stringify(data, null, 2), 'application/json;charset=utf-8', false);
   $('settingsMsg').textContent = 'Settings exported.';
+  log('Settings exported to file.', 'l-dim');
   setTimeout(()=> $('settingsMsg').textContent = '', 2000);
 });
 
@@ -2934,6 +2945,7 @@ $('settingsFileInput').addEventListener('change', async e=>{
     const data = JSON.parse(text);
     applySettingsImport(data);
     $('settingsMsg').textContent = 'Settings imported.';
+    log('Settings imported from file.', 'l-dim');
   }catch(err){
     $('settingsMsg').textContent = `Import failed: ${err.message || 'Invalid file'}`;
   }finally{
@@ -2977,6 +2989,7 @@ $('testABBtn').addEventListener('click', async ()=>{
 $('clearCacheBtn').addEventListener('click', ()=>{
   clearAllCache();
   $('settingsMsg').textContent = 'Cache cleared.';
+  log('Cache cleared — all cached API responses deleted.', 'l-dim');
   setTimeout(()=> $('settingsMsg').textContent = '', 2000);
 });
 $('resetSettingsBtn').addEventListener('click', ()=>{
@@ -2986,6 +2999,7 @@ $('resetSettingsBtn').addEventListener('click', ()=>{
   loadSettings();
   initKeyVisibilityControls();
   $('settingsMsg').textContent = 'Settings reset.';
+  log('Settings restored to defaults — cache cleared.', 'l-dim');
 });
 
 /* =========================================================================
@@ -3021,7 +3035,7 @@ async function registerServiceWorker(){
   try{
     await navigator.serviceWorker.register('./sw.js', { scope: './' });
   }catch(e){
-    log('Service worker registration failed.', 'l-warn');
+    log('Service worker registration failed — offline caching unavailable.', 'l-warn');
   }
 }
 
@@ -3056,7 +3070,7 @@ function init(){
   detectMyIp();
   renderTable();
   updateSummary();
-  log('Sentry Batch ready. Add API keys in Settings to enable threat scoring.', '');
+  log('Sentry Batch initialized. Configure API keys in Settings for threat scoring.', '');
 }
 init();
 
