@@ -4,8 +4,8 @@
   "start_url": "./launcher.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0A0E13",
-  "theme_color": "#0A0E13",
+  "background_color": "#1b1b1b",
+  "theme_color": "#1b1b1b",
   "description": "Bulk IP reputation and threat intelligence console.",
   "icons": [
     {

@@ -1,5 +1,10 @@
 # Sentry Batch
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/kamolkns/sentrybatch/releases)
+[![JavaScript](https://img.shields.io/badge/JavaScript-ES%20Modules-yellow)](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
+
 Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addresses through VirusTotal, AbuseIPDB, and open-source threat intelligence feeds in a single browser-based desktop tool.
 
 ## Features
@@ -112,6 +117,27 @@ Sentry Batch uses ES modules (`<script type="module">`), which are blocked by br
 - The page enforces a Content Security Policy and verifies third-party scripts with Subresource Integrity.
 - All API/proxy requests bypass the service worker cache — no credentials are stored offline.
 - See `SECURITY.md` for the full security policy and vulnerability reporting process.
+
+## Limitations
+
+- **Internet connection required** — All analysis is performed via live API calls. No results are available offline.
+- **API rate limits apply** — VirusTotal's public tier allows 4 requests/minute (500/day). AbuseIPDB's free tier allows 1,000 checks/day. Premium tiers remove or raise these limits.
+- **CORS proxy may be required** — VirusTotal and AbuseIPDB do not send browser CORS headers. A CORS proxy (public or self-hosted) is needed when running from `http://localhost`. See Configuration above.
+- **Modern browser required** — The application uses ES modules, Service Workers, and other modern web APIs. Internet Explorer and older browsers are not supported.
+- **Maximum 1,000 IPs per batch** — Input lists exceeding 1,000 unique entries are truncated to the first 1,000.
+- **Domains are resolved before checking** — Domain analysis resolves to an IP first. The IP is then checked against threat feeds. Domain-only intelligence (e.g., WHOIS) is not collected.
+
+## Acknowledgments
+
+Sentry Batch uses data and services from:
+
+- **[VirusTotal](https://www.virustotal.com)** — Threat intelligence and detection engine
+- **[AbuseIPDB](https://www.abuseipdb.com)** — IP reputation and abuse reporting
+- **[AlienVault OTX](https://otx.alienvault.com)** — Open threat exchange pulse data
+- **[ThreatFox](https://threatfox.abuse.ch)** — Malware indicator sharing platform
+- **[ipapi.co](https://ipapi.co)** — IP geolocation data
+- **[Google Public DNS](https://developers.google.com/speed/public-dns)** — DNS-over-HTTPS resolution
+- **[Chart.js](https://www.chartjs.org)** — Visualization library
 
 ## License
 
