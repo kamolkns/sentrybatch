@@ -30,11 +30,7 @@ const state = {
   secondarySort: '',
   customFilter: 'all',
   hiddenColumns: new Set(),
-  page: 1,
-  pageSize: 1000,
-  virtualStart: 0,
-  virtualRowHeight: 39,
-  virtualWindow: 60,
+
   renderQueued: false,
   chartsQueued: false,
   vtCooldownUntil: 0,
@@ -330,6 +326,33 @@ function isValidIPv4(ip){
   if(!m) return false;
   return m.slice(1).every(o => Number(o) >= 0 && Number(o) <= 255);
 }
+function isValidIPv6(ip){
+  const s = String(ip).trim();
+  if(!s) return false;
+  if(s === '::') return true;
+  if(s.indexOf('::') !== s.lastIndexOf('::')) return false;
+  if(s.startsWith(':') && !s.startsWith('::')) return false;
+  if(s.endsWith(':') && !s.endsWith('::')) return false;
+  const parts = s.split(':');
+  const lastPart = parts[parts.length - 1];
+  let hexParts = parts;
+  let maxHexGroups = 8;
+  if(lastPart.includes('.')){
+    if(!isValidIPv4(lastPart)) return false;
+    hexParts = parts.slice(0, -1);
+    maxHexGroups = 6;
+  }
+  const hasDouble = s.includes('::');
+  const filtered = hexParts.filter(p => p !== '');
+  const emptyCount = hexParts.filter(p => p === '').length;
+  if(hasDouble){
+    if(emptyCount > 2) return false;
+    if(filtered.length > maxHexGroups) return false;
+  } else {
+    if(hexParts.length !== maxHexGroups) return false;
+  }
+  return filtered.every(p => /^[0-9a-fA-F]{1,4}$/.test(p));
+}
 function isDomain(s){
   return /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})+$/.test(s) && !isValidIPv4(s);
 }
@@ -401,6 +424,8 @@ async function parseIPList(raw, onProgress){
       if(r.tooLarge){ warnings.push(`Range ${tok} expands to ${r.count} IPs — too large, skipped`); continue; }
       r.ips.forEach(ip=>finalSet.add(ip));
     } else if(isValidIPv4(tok)){
+      finalSet.add(tok);
+    } else if(isValidIPv6(tok)){
       finalSet.add(tok);
     } else if(isDomain(tok)){
       const ip = await resolveDomain(tok);
@@ -542,7 +567,6 @@ async function checkVirusTotalIP(ip, apiKey, attempt, signal){
     });
     if(!apiResult.data) throw new Error(apiResult.error);
     const res = apiResult.data;
-    incrementVtUsage();
     if(res.status === 429){
       if(attempt < 3){
         const backoff = 15000 * Math.pow(2, attempt);
@@ -553,6 +577,7 @@ async function checkVirusTotalIP(ip, apiKey, attempt, signal){
       }
       throw new Error('VT rate limited (429) after retries');
     }
+    incrementVtUsage();
     if(res.status === 401 || res.status === 403) throw new Error(`VT HTTP ${res.status} — check your API key`);
     if(!res.ok) throw new Error(`VT HTTP ${res.status}`);
     const data = await res.json();
@@ -1629,28 +1654,10 @@ function renderStatusCell(r){
 let expandedIp = null;
 function renderTable(){
   const rows = getFilteredSorted();
-  const totalPages = Math.max(1, Math.ceil(rows.length / state.pageSize));
-  if(state.page > totalPages) state.page = totalPages;
-  const startIdx = (state.page-1)*state.pageSize;
-  const pageRows = rows.slice(startIdx, startIdx+state.pageSize);
-  const virtualStart = Math.min(state.virtualStart, Math.max(0, pageRows.length - state.virtualWindow));
-  state.virtualStart = virtualStart;
-  const visibleRows = pageRows.slice(virtualStart, virtualStart + state.virtualWindow);
-
   const tbody = $('resultsBody');
   const frag = document.createDocumentFragment();
 
-  if(virtualStart){
-    const spacer = el('tr');
-    const cell = el('td');
-    cell.colSpan = 16;
-    cell.style.height = `${virtualStart * state.virtualRowHeight}px`;
-    cell.style.padding = '0';
-    spacer.appendChild(cell);
-    frag.appendChild(spacer);
-  }
-
-  visibleRows.forEach(r=>{
+  rows.forEach(r=>{
     const tr = el('tr', 'row-expand');
     tr.dataset.ip = r.ip;
 
@@ -1686,21 +1693,10 @@ function renderTable(){
     }
   });
 
-  const remaining = pageRows.length - virtualStart - visibleRows.length;
-  if(remaining){
-    const spacer = el('tr');
-    const cell = el('td');
-    cell.colSpan = 16;
-    cell.style.height = `${remaining * state.virtualRowHeight}px`;
-    cell.style.padding = '0';
-    spacer.appendChild(cell);
-    frag.appendChild(spacer);
-  }
-
   tbody.innerHTML = '';
   tbody.appendChild(frag);
   applyColumnVisibility();
-  renderPagination(rows.length, totalPages);
+  renderPagination(rows.length);
 }
 
 function applyColumnVisibility(){
@@ -1797,7 +1793,7 @@ function buildDetailHtml(r){
   `;
 }
 
-function renderPagination(totalRows, totalPages){
+function renderPagination(totalRows){
   const p = $('pagination');
   p.innerHTML = '';
   if(totalRows === 0){
@@ -1805,12 +1801,7 @@ function renderPagination(totalRows, totalPages){
     p.innerHTML = `<span>${msg}</span>`;
     return;
   }
-  const prev = el('button','',''); prev.textContent='‹ Prev'; prev.disabled = state.page<=1;
-  prev.onclick = ()=>{ state.page--; state.virtualStart=0; renderTable(); };
-  const next = el('button','',''); next.textContent='Next ›'; next.disabled = state.page>=totalPages;
-  next.onclick = ()=>{ state.page++; state.virtualStart=0; renderTable(); };
-  const info = el('span','', `Page ${state.page} of ${totalPages} — ${totalRows} rows`);
-  p.appendChild(prev); p.appendChild(info); p.appendChild(next);
+  p.innerHTML = `<span>${totalRows} result${totalRows === 1 ? '' : 's'}</span>`;
 }
 
 document.addEventListener('click', (e)=>{
@@ -1870,23 +1861,11 @@ document.querySelectorAll('table.results thead th[data-key]').forEach(th=>{
     document.querySelectorAll('table.results thead th .arrow').forEach(a=>a.remove());
     const arrow = el('span','arrow', state.sortDir===1?'▲':'▼');
     th.appendChild(arrow);
-    state.page = 1;
-    state.virtualStart = 0;
     renderTable();
   });
 });
 
-let virtualScrollTimer = null;
-document.querySelector('.table-scroll').addEventListener('scroll', e=>{
-  clearTimeout(virtualScrollTimer);
-  virtualScrollTimer = setTimeout(()=>{
-    const nextStart = Math.floor(e.currentTarget.scrollTop / state.virtualRowHeight);
-    if(nextStart !== state.virtualStart){
-      state.virtualStart = nextStart;
-      renderTable();
-    }
-  }, 16);
-});
+
 
 /* filters */
 document.querySelectorAll('.pill').forEach(p=>{
@@ -1894,8 +1873,6 @@ document.querySelectorAll('.pill').forEach(p=>{
     document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
     p.classList.add('active');
     state.currentFilter = p.dataset.filter;
-    state.page = 1;
-    state.virtualStart = 0;
     renderTable();
   });
 });
@@ -1904,8 +1881,6 @@ $('searchBox').addEventListener('input', (e)=>{
   clearTimeout(searchTimer);
   searchTimer = setTimeout(()=>{
     state.searchTerm = e.target.value;
-    state.page = 1;
-    state.virtualStart = 0;
     renderTable();
   }, 180);
 });
@@ -1951,7 +1926,7 @@ $('saveSearchBtn').addEventListener('click', ()=>{
 $('loadSearchBtn').addEventListener('click', ()=>{
   const saved = readJson(LS_KEYS.savedSearches, [])[0];
   if(!saved){ workflowMessage('No saved search yet.'); return; }
-  $('searchBox').value = saved.term || ''; state.searchTerm = saved.term || ''; state.currentFilter = saved.filter || 'all'; document.querySelector(`.pill[data-filter="${state.currentFilter}"]`).click(); state.customFilter = saved.custom || 'all'; $('customFilter').value = state.customFilter; state.secondarySort = saved.secondary || ''; $('secondarySort').value = state.secondarySort; renderTable();
+  $('searchBox').value = saved.term || ''; state.searchTerm = saved.term || ''; state.currentFilter = saved.filter || 'all'; const pill = document.querySelector(`.pill[data-filter="${state.currentFilter}"]`); if(pill) pill.click(); state.customFilter = saved.custom || 'all'; $('customFilter').value = state.customFilter; state.secondarySort = saved.secondary || ''; $('secondarySort').value = state.secondarySort;
   workflowMessage('Loaded latest saved search.');
 });
 $('saveSessionBtn').addEventListener('click', ()=>{
@@ -1965,7 +1940,7 @@ $('loadSessionBtn').addEventListener('click', ()=>{
   session.rows.forEach(row=>{ state.results.set(row.ip, row); state.order.push(row.ip); });
   renderTable(); updateSummary(); workflowMessage(`Loaded session with ${session.rows.length} results.`);
 });
-$('customFilter').addEventListener('change', e=>{ state.customFilter = e.target.value; state.page=1; state.virtualStart=0; renderTable(); });
+$('customFilter').addEventListener('change', e=>{ state.customFilter = e.target.value; renderTable(); });
 $('secondarySort').addEventListener('change', e=>{ state.secondarySort = e.target.value; writeJson(LS_KEYS.sortStack, { primary: state.sortKey, secondary: state.secondarySort }); renderTable(); });
 
 /* =========================================================================
@@ -2648,10 +2623,11 @@ function saveSessionToHistory(total){
    15. INPUT HANDLING (paste, upload, CIDR expansion, auto-check)
    ========================================================================= */
 let debounceTimer = null;
+let autoCheckTimer = null;
 function scheduleAutoCheck(delay){
   if(!$('autoCheckSwitch').classList.contains('on')) return;
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(()=>{
+  clearTimeout(autoCheckTimer);
+  autoCheckTimer = setTimeout(()=>{
     if(!state.processing) startProcessing();
   }, delay);
 }
@@ -2787,7 +2763,7 @@ $('singleCheckBtn').addEventListener('click', async ()=>{
     const resolved = await resolveDomain(val);
     if(!resolved){ log(`Could not resolve ${val}`, 'l-err'); $('singleCheckBtn').disabled=false; setNetStatus('Idle',false); return; }
     ip = resolved;
-  } else if(!isValidIPv4(val)){
+  } else if(!isValidIPv4(val) && !isValidIPv6(val)){
     log(`Invalid IP or domain: ${val}`, 'l-err');
     $('singleCheckBtn').disabled = false; setNetStatus('Idle', false);
     return;
