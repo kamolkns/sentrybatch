@@ -1,6 +1,41 @@
 MIT License
 
-Copyright (c) 2026 Sentry Batch
+Project: Sentry Batch
+Version: 1.0.0
+Copyright (c) 2026 Kamol Khaeonkhonsim
+
+Sentry Batch is an open-source browser-based IP Threat Intelligence and
+Reputation Analysis Console. It enables security analysts to perform
+batch investigations against multiple threat intelligence providers,
+generate investigation reports, and visualize security data entirely
+within the browser.
+
+Repository:
+https://github.com/kamolkns/sentrybatch
+
+License Summary
+
+You are free to:
+
+• Use the software for personal or commercial purposes.
+• Copy and redistribute the software.
+• Modify and create derivative works.
+• Publish and distribute modified versions.
+• Include the software in larger projects.
+• Sell software that includes this project.
+
+Conditions
+
+• The copyright notice and this license must be included in all
+  copies or substantial portions of the Software.
+
+Disclaimer
+
+This software is provided "AS IS", without warranty of any kind.
+The authors are not liable for damages or claims resulting from
+the use of this software.
+
+-----------------------------------------------------------------------
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
