@@ -1,5 +1,6 @@
-const CACHE_NAME = 'sentry-batch-shell-v2';
+const CACHE_NAME = 'sentry-batch-shell-v3';
 const APP_SHELL = [
+  './launcher.html',
   './index.html',
   './guard.js',
   './main.js',
@@ -87,15 +88,17 @@ self.addEventListener('fetch', event => {
   if(shouldBypassCache(request)) return;
 
   // Navigation — network-first, fall back to cached shell.
+  // NOTE: Navigation responses are NOT written to cache. All app-shell
+  // resources are pre-cached during SW install via APP_SHELL. Writes are
+  // omitted to prevent cache-key corruption (e.g., storing launcher.html
+  // content under the ./index.html key). The stale-while-revalidate handler
+  // below handles subresource cache updates.
   if(request.mode === 'navigate'){
     event.respondWith((async () => {
       try{
-        const fresh = await fetch(request);
-        const cache = await caches.open(CACHE_NAME);
-        cache.put('./index.html', fresh.clone());
-        return fresh;
+        return await fetch(request);
       }catch(e){
-        const cached = await caches.match('./index.html');
+        const cached = await caches.match(request) || await caches.match('./index.html');
         return cached || Response.error();
       }
     })());

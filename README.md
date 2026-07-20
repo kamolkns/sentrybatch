@@ -7,6 +7,10 @@
 
 Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addresses through VirusTotal, AbuseIPDB, and open-source threat intelligence feeds in a single browser-based desktop tool.
 
+## Prerequisites
+
+[Python 3.10 or newer](https://www.python.org/downloads/) is required to run the local HTTP server.
+
 ## Features
 
 - **Batch IP analysis** — Process up to 1,000 IPs per run with configurable batch sizes and concurrency
@@ -25,33 +29,41 @@ Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addre
 
 ## Requirements
 
-- **Python 3** (for the included local HTTP server) or any HTTP server of your choice
-- A modern **browser** with ES module and Service Worker support
-
-### Browser Compatibility
-
-| Browser | Supported | Notes |
-|---------|-----------|-------|
-| Chrome 89+ | Yes | Full support |
-| Edge 89+ | Yes | Full support |
-| Firefox 90+ | Yes | Full support |
-| Safari 15+ | Yes | Limited Service Worker caching |
-| Opera 75+ | Likely | Not regularly tested |
-| Internet Explorer | No | Not supported |
+- **Windows 10 or Windows 11**
+- **Python 3.10 or newer**
+- A modern **Chromium-based browser** (Chrome, Edge, Brave, etc.)
 
 ## Getting Started
 
-### Running Locally
+### Installation
 
-1. Start a local HTTP server in the project directory:
+1. Download and install Python from the official website:
+
+   https://www.python.org/downloads/
+
+2. During installation, enable:
+
+   ✓ Add Python to PATH
+
+3. Verify installation by opening Command Prompt and running:
 
    ```powershell
-   python -m http.server 8080
+   python --version
    ```
 
-2. Open `http://localhost:8080/launcher.html` in your browser.
+   A version number should be displayed.
 
-   Alternatively, double-click **Open Sentry Batch.bat** (Windows) which starts the server and opens the launcher automatically.
+### Starting Sentry Batch
+
+Launch the application using:
+
+    Open Sentry Batch.bat
+
+The launcher will:
+
+- start the local HTTP server
+- wait until the server is ready
+- automatically open the application in the browser
 
 ### Why launcher.html?
 
@@ -66,6 +78,30 @@ Sentry Batch uses ES modules (`<script type="module">`), which are blocked by br
 5. Click **Test** to verify connectivity.
 
 > **Browser CORS note:** VirusTotal and AbuseIPDB do not send CORS headers, so browsers block direct `fetch()` calls from a page loaded via `http://`. You'll see "Blocked by browser (CORS)" even with a valid key. Fix it by setting a CORS proxy prefix in Settings — either a public proxy like `https://corsproxy.io/?url=` (quick testing only) or a self-hosted proxy (recommended for production).
+
+### Troubleshooting
+
+#### Python is not installed
+
+If the launcher reports that Python could not be started, install Python from:
+
+https://www.python.org/downloads/
+
+Make sure "Add Python to PATH" was enabled during installation.
+
+#### Port 8080 already in use
+
+If another application is using port 8080, close that application and launch Sentry Batch again.
+
+#### Windows Firewall
+
+The application uses only localhost (127.0.0.1) and does not expose the server to the Internet.
+
+### Notes
+
+- The built-in Python HTTP server is only used to serve local application files.
+- No backend service is required.
+- No data is uploaded to external servers except the threat intelligence APIs configured by the user.
 
 ## Project Structure
 
