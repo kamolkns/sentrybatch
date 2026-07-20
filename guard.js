@@ -1,5 +1,5 @@
 (function(){
-  if(sessionStorage.getItem('sentrybatch-launch') === '1'){
+  if(sessionStorage.getItem('sentrybatch-launch') === '1' || localStorage.getItem('sentrybatch-installed') === '1'){
     sessionStorage.removeItem('sentrybatch-launch');
     return;
   }

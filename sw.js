@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sentry-batch-shell-v3';
+const CACHE_NAME = 'sentry-batch-shell-v4';
 const APP_SHELL = [
   './launcher.html',
   './index.html',
@@ -16,6 +16,7 @@ const APP_SHELL = [
   './workflow.js',
   './manifest.webmanifest',
   './icon.svg',
+  './favicon.svg',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
   'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap'
 ];
