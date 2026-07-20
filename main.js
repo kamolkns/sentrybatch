@@ -2,7 +2,7 @@
 import { APP_CONFIG, STORAGE_KEYS } from './config.js';
 import { request } from './api.js';
 import { getStored, setStored, removeStored } from './cache.js';
-import { isPrivateOrReserved } from './parser.js';
+import { isPrivateOrReserved, extractHostname } from './parser.js?v=20260717';
 import { lookupTierOne } from './intelligence.js';
 import { readJson, writeJson, saveListItem } from './workflow.js';
 
@@ -404,9 +404,11 @@ function tokenize(raw){
   return raw.split(/[\n,\s]+/).map(s=>s.trim()).filter(Boolean);
 }
 
-// Full parse pipeline: tokenize -> expand CIDR/ranges -> flag domains for async resolution -> dedupe
+// Full parse pipeline: normalize -> tokenize -> dedupe -> expand CIDR/ranges -> flag domains for async resolution
 async function parseIPList(raw, onProgress){
-  const tokens = [...new Set(tokenize(raw))];
+  const rawTokens = tokenize(raw);
+  const normalizedTokens = rawTokens.map(t => extractHostname(t));
+  const tokens = [...new Set(normalizedTokens)];
   const finalSet = new Set();
   const domainMap = new Map(); // resolvedIp -> domain, for display
   let warnings = [];
@@ -2753,8 +2755,22 @@ async function detectMyIp(){
 }
 
 $('singleCheckBtn').addEventListener('click', async ()=>{
-  const val = $('singleInput').value.trim();
+  const val = extractHostname($('singleInput').value.trim());
   if(!val) return;
+  if(val.includes('/')){
+    const cidrBase = val.split('/')[0];
+    if(isValidIPv4(cidrBase)){
+      log('CIDR notation is only supported in Bulk Input.', 'l-warn');
+      return;
+    }
+  }
+  if(val.includes('-')){
+    const rangeBase = val.split('-')[0];
+    if(isValidIPv4(rangeBase)){
+      log('IP ranges are only supported in Bulk Input.', 'l-warn');
+      return;
+    }
+  }
   $('singleCheckBtn').disabled = true;
   setNetStatus('Checking…', true);
   let ip = val, domainLabel = '';

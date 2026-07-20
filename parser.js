@@ -6,3 +6,12 @@ export function isValidIPv4(ip){
 export function isPrivateOrReserved(ip){
   return /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(String(ip));
 }
+export function extractHostname(input){
+  let s = String(input).trim();
+  if(s.startsWith('http://') || s.startsWith('https://')){
+    try {
+      s = new URL(s).hostname;
+    } catch(e){}
+  }
+  return s.replace(/[\/\\]+$/, '');
+}

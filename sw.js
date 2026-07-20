@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sentry-batch-shell-v4';
+const CACHE_NAME = 'sentry-batch-shell-v5';
 const APP_SHELL = [
   './launcher.html',
   './index.html',
