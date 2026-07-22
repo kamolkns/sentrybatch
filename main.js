@@ -2,7 +2,7 @@
 import { APP_CONFIG, STORAGE_KEYS } from './config.js';
 import { request } from './api.js';
 import { getStored, setStored, removeStored } from './cache.js';
-import { isPrivateOrReserved, extractHostname } from './parser.js?v=20260717';
+import { isPrivateOrReserved, extractHostname } from './parser.js?v=20260718';
 import { lookupTierOne } from './intelligence.js';
 import { readJson, writeJson, saveListItem } from './workflow.js';
 
