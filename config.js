@@ -17,7 +17,6 @@ export const STORAGE_KEYS = Object.freeze({
   useVT: 'sb_use_vt',
   useAB: 'sb_use_ab',
   theme: 'sb_theme',
-  corsProxy: 'sb_cors_proxy',
   cachePrefix: 'sb_cache_',
   vtUsage: 'sb_vt_usage_',
   history: 'sb_history',

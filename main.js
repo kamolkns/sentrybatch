@@ -60,17 +60,14 @@ function todayKey(){ return new Date().toISOString().slice(0,10); }
 function nowIso(){ return new Date().toISOString(); }
 
 /* Wrap a target URL with the user's configured CORS proxy prefix, if any. */
+const PROXY_PREFIX = 'https://corsproxy.io/?url=';
 function proxied(url){
-  const prefix = ($('corsProxy') && $('corsProxy').value.trim()) || '';
-  if(!prefix) return url;
-  return prefix + encodeURIComponent(url);
+  return PROXY_PREFIX + encodeURIComponent(url);
 }
 /* Turn a raw fetch/network failure into a human-readable reason. */
 function describeFetchError(e){
   if(e instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(e.message||'')){
-    return $('corsProxy').value.trim()
-      ? 'Blocked — the configured CORS proxy rejected or could not reach the request.'
-      : 'Blocked by browser (CORS) — this API does not allow direct browser requests. Set a CORS proxy in Settings.';
+    return 'Blocked — the CORS proxy rejected or could not reach the request.';
   }
   return e.message || 'Unknown error';
 }
@@ -563,7 +560,7 @@ async function checkVirusTotalIP(ip, apiKey, attempt, signal){
     const target = `${APP_CONFIG.api.virusTotal}/ip_addresses/${ip}`;
     const apiResult = await request(target, {
       headers: { 'x-apikey': apiKey },
-      proxyPrefix: $('corsProxy').value.trim(),
+      proxyPrefix: PROXY_PREFIX,
       timeoutMs: APP_CONFIG.requestTimeoutMs,
       signal
     });
@@ -669,7 +666,7 @@ async function checkAbuseIPDB(ip, apiKey, signal){
     const target = `${APP_CONFIG.api.abuseIpDb}/check?ipAddress=${ip}&maxAgeInDays=90`;
     const apiResult = await request(target, {
       headers: { 'Key': apiKey, 'Accept': 'application/json' },
-      proxyPrefix: $('corsProxy').value.trim(),
+      proxyPrefix: PROXY_PREFIX,
       timeoutMs: APP_CONFIG.requestTimeoutMs,
       signal
     });
@@ -879,7 +876,7 @@ async function processSingleIP(ip, domainLabel, onStatus, signal){
   }
 
   const [geo, vtResult, abResult, intelligence] = await Promise.all([
-    geoPromise, runVT(), runAB(), lookupTierOne(ip, { otxKey, threatFoxKey, proxyPrefix: $('corsProxy').value.trim(), signal })
+    geoPromise, runVT(), runAB(), lookupTierOne(ip, { otxKey, threatFoxKey, proxyPrefix: PROXY_PREFIX, signal })
   ]);
   vt = vtResult;
   ab = abResult;
@@ -2817,7 +2814,6 @@ function loadSettings(){
   $('vtCustomRateWrap').style.display = $('vtTier').value === '60' ? 'block' : 'none';
   setSwitch('useVTSwitch', lsGet(LS_KEYS.useVT, '1') === '1');
   setSwitch('useABSwitch', lsGet(LS_KEYS.useAB, '1') === '1');
-  $('corsProxy').value = lsGet(LS_KEYS.corsProxy, '');
 }
 
 function collectSettingsExport(){
@@ -2830,7 +2826,6 @@ function collectSettingsExport(){
       vtCustomRate: lsGet(LS_KEYS.vtCustomRate, '60'),
       useVT: lsGet(LS_KEYS.useVT, '1'),
       useAB: lsGet(LS_KEYS.useAB, '1'),
-      corsProxy: lsGet(LS_KEYS.corsProxy, ''),
       hiddenColumns: readJson(LS_KEYS.tableColumns, []),
       sortStack: readJson(LS_KEYS.sortStack, {}),
     }
@@ -2845,7 +2840,6 @@ function applySettingsImport(payload){
   if(settings.vtCustomRate != null) lsSet(LS_KEYS.vtCustomRate, String(settings.vtCustomRate));
   if(settings.useVT != null) lsSet(LS_KEYS.useVT, String(settings.useVT));
   if(settings.useAB != null) lsSet(LS_KEYS.useAB, String(settings.useAB));
-  if(settings.corsProxy != null) lsSet(LS_KEYS.corsProxy, String(settings.corsProxy));
   if(Array.isArray(settings.hiddenColumns)){
     writeJson(LS_KEYS.tableColumns, settings.hiddenColumns);
     state.hiddenColumns = new Set(settings.hiddenColumns);
@@ -2912,7 +2906,6 @@ $('saveKeysBtn').addEventListener('click', ()=>{
   lsSet(LS_KEYS.vtCustomRate, $('vtCustomRate').value);
   lsSet(LS_KEYS.useVT, $('useVTSwitch').classList.contains('on') ? '1' : '0');
   lsSet(LS_KEYS.useAB, $('useABSwitch').classList.contains('on') ? '1' : '0');
-  lsSet(LS_KEYS.corsProxy, $('corsProxy').value.trim());
   $('settingsMsg').textContent = 'Saved for this browser session.';
   updateApiStatusBar();
   testApiConnections();

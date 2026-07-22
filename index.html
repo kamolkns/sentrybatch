@@ -412,13 +412,7 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
           </button>
         </div>
       </div>
-      <div class="field-row">
-        <div class="field" style="flex:2;">
-          <label for="corsProxy">CORS proxy prefix (optional — required for most browsers)</label>
-          <input type="text" id="corsProxy" placeholder="e.g. https://corsproxy.io/?url=">
-          <div class="hint">VirusTotal and AbuseIPDB don't send CORS headers, so browsers block direct requests to them (you'll see "Failed to fetch"). Set a proxy prefix here and requests will be sent as <code>prefix + encodeURIComponent(targetUrl)</code>. You can self-host a tiny proxy (safest — your key never leaves your infra) or use a public one (your API key will pass through that third party — only do this with a throwaway/low-privilege key).</div>
-        </div>
-      </div>
+
       <div class="btn-row">
         <button class="btn primary" id="saveKeysBtn">Save keys</button>
         <button class="btn" id="testVTBtn">Test VirusTotal</button>
@@ -682,15 +676,7 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
     </div>
     <div class="panel-body readme">
       <h3>Setup</h3>
-      <p>Open <code>index.html</code> in any modern browser. Nothing to install. API keys are kept only for the current browser session and are cleared when the session ends. They are sent only to VirusTotal / AbuseIPDB, or to the CORS proxy you explicitly configure.</p>
-      <div class="callout">
-        <b>Browser CORS note:</b> VirusTotal and AbuseIPDB do not send CORS headers, so browsers block direct <code>fetch()</code> calls to them from a page like this one — you'll see "Blocked by browser (CORS)" or "Failed to fetch" even with a valid key. This isn't a bug in the key or the request; it's the browser refusing to hand back the response. Fix it by setting a <b>CORS proxy prefix</b> in Settings, for example:
-        <ul>
-          <li>A public proxy for quick testing, e.g. <code>https://corsproxy.io/?url=</code> — simple, but your API key passes through that third party, so only use a throwaway/low-privilege key this way.</li>
-          <li>A tiny self-hosted proxy (safest) — a one-file Cloudflare Worker, Vercel edge function, or Node/Express endpoint that forwards the request server-side and adds permissive CORS headers back to the browser. This keeps your key off any third party.</li>
-        </ul>
-        Geolocation (ipapi.co) and DNS resolution (dns.google) are CORS-friendly already and work without a proxy.
-      </div>
+      <p>Open <code>index.html</code> in any modern browser. Nothing to install. API keys are kept only for the current browser session and are cleared when the session ends. They are sent only to VirusTotal / AbuseIPDB API endpoints via a built-in CORS proxy (<code>https://corsproxy.io/</code>) so no manual proxy configuration is needed.</p>
       <h3>Bulk input format</h3>
       <p>This tool checks <b>IP addresses and domains only</b> — file hashes, URLs, or other indicator types (e.g. a 64-character SHA-256 string) aren't recognized and are skipped with a warning in the log. Use VirusTotal directly for hash/file lookups.</p>
       <h3>Bulk input</h3>
