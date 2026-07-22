@@ -2,7 +2,7 @@
 import { APP_CONFIG, STORAGE_KEYS } from './config.js';
 import { request } from './api.js';
 import { getStored, setStored, removeStored } from './cache.js';
-import { isPrivateOrReserved, extractHostname } from './parser.js?v=20260718';
+import { isPrivateOrReserved, extractHostname, isValidIPv4 } from './parser.js?v=20260718';
 import { lookupTierOne } from './intelligence.js';
 import { readJson, writeJson, saveListItem } from './workflow.js';
 
@@ -296,6 +296,7 @@ async function apiFetch(url, options = {}){
   const result = await request(url, {
     headers: options.headers || {},
     timeoutMs: APP_CONFIG.requestTimeoutMs,
+    signal: options.signal,
   });
   if(!result.data) throw new Error(result.error);
   return result.data;
@@ -316,13 +317,7 @@ function evictOldCache(){
 /* =========================================================================
    3. IP / DOMAIN PARSING, CIDR & RANGE EXPANSION
    ========================================================================= */
-const IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 
-function isValidIPv4(ip){
-  const m = ip.match(IPV4_RE);
-  if(!m) return false;
-  return m.slice(1).every(o => Number(o) >= 0 && Number(o) <= 255);
-}
 function isValidIPv6(ip){
   const s = String(ip).trim();
   if(!s) return false;

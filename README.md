@@ -29,7 +29,6 @@ Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addre
 
 ## Requirements
 
-- **Windows 10 or Windows 11** (any OS with Node.js works)
 - **Node.js** (for the local HTTP server)
 - A modern **Chromium-based browser** (Chrome, Edge, Brave, etc.)
 
@@ -37,35 +36,74 @@ Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addre
 
 ### Installation
 
-1. Download and install Node.js from the official website:
+Install Node.js using your preferred method:
 
-   https://nodejs.org/
+<details>
+<summary><b>Windows</b></summary>
 
-2. Verify installation by opening Command Prompt and running:
+1. Download and install Node.js from https://nodejs.org/
+2. Verify: `node --version`
+</details>
 
-   ```powershell
-   node --version
-   ```
+<details>
+<summary><b>Arch Linux</b></summary>
 
-   A version number should be displayed.
+```bash
+sudo pacman -S nodejs npm
+node --version
+```
+</details>
+
+<details>
+<summary><b>Debian / Ubuntu</b></summary>
+
+```bash
+sudo apt update
+sudo apt install nodejs npm
+node --version
+```
+</details>
+
+<details>
+<summary><b>NixOS</b></summary>
+
+```bash
+nix-shell -p nodejs
+# or add to configuration.nix:
+#   environment.systemPackages = with pkgs; [ nodejs ];
+```
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+brew install node
+# or download from https://nodejs.org/
+```
+</details>
 
 ### Starting Sentry Batch
 
-Launch the application using:
+**Windows:** Double-click `Open Sentry Batch.bat`
 
-    Open Sentry Batch.bat
+**Linux / macOS:** Make the script executable and run it:
 
-The launcher will:
+```bash
+chmod +x start.sh
+./start.sh
+```
 
+Both launchers will:
 - start the local HTTP server
 - wait until the server is ready
 - automatically open the application in the browser
 
 ### Opening the app
 
-The app must be served over HTTP for ES modules and the Service Worker to work. Double-click [Open Sentry Batch.bat](Open%20Sentry%20Batch.bat) or run:
+The app must be served over HTTP for ES modules and the Service Worker to work. Use one of the launchers above or run manually:
 
-```powershell
+```bash
 npx --yes http-server -p 8080
 ```
 
@@ -84,9 +122,11 @@ Then open `http://localhost:8080/` in your browser.
 
 #### Node.js is not installed
 
-If the launcher reports that Node.js could not be started, install Node.js from:
+If the launcher reports that Node.js could not be started:
 
-https://nodejs.org/
+- **Windows:** Download from https://nodejs.org/
+- **Linux:** Use your package manager (see Installation section)
+- **macOS:** `brew install node` or download from https://nodejs.org/
 
 #### Port 8080 already in use
 

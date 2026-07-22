@@ -5,10 +5,6 @@ function safeMessage(error){
   return message.replace(/(?:x-apikey|key|authorization)\s*[:=]\s*[^\s,;]+/gi, '$1: [redacted]');
 }
 
-export function withProxy(url, proxyPrefix = ''){
-  return proxyPrefix ? proxyPrefix + encodeURIComponent(url) : url;
-}
-
 export async function request(url, { headers = {}, method = 'GET', body, timeoutMs = APP_CONFIG.requestTimeoutMs, proxyPrefix = '', signal } = {}){
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
