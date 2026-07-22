@@ -37,7 +37,7 @@ Open a GitHub Issue with:
 
 The project does not currently have an automated test suite. Test your changes manually:
 
-1. Start `python -m http.server 8080` in the project root.
+1. Start `npx --yes http-server -p 8080` in the project root.
 2. Open `http://localhost:8080/`.
 3. Verify the feature works and no regressions are visible in the browser console.
 

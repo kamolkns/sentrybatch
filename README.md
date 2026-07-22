@@ -1,7 +1,7 @@
 # Sentry Batch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/kamolkns/sentrybatch/releases)
+[![GitHub release](https://img.shields.io/badge/release-v1.1.1-blue)](https://github.com/kamolkns/sentrybatch/releases)
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES%20Modules-yellow)](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
@@ -9,7 +9,7 @@ Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addre
 
 ## Prerequisites
 
-[Python 3.10 or newer](https://www.python.org/downloads/) is required to run the local HTTP server.
+[Node.js](https://nodejs.org/) is required to run the local HTTP server via `npx http-server`.
 
 ## Features
 
@@ -21,7 +21,7 @@ Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addre
 - **Analyst workspace** — Per-IP notes, tagging, custom filters, column visibility, saved searches
 - **Session persistence** — Save/load sessions, cache management, auto-resume
 - **Offline-capable** — Service worker caches app shell for repeat launches
-- **Launch guard** — Prevents accidental direct file:// access that breaks ES module imports
+- **Launch guard** — Detects `file://` access and warns you to use the HTTP server instead
 
 ## Screenshots
 
@@ -29,26 +29,22 @@ Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addre
 
 ## Requirements
 
-- **Windows 10 or Windows 11**
-- **Python 3.10 or newer**
+- **Windows 10 or Windows 11** (any OS with Node.js works)
+- **Node.js** (for the local HTTP server)
 - A modern **Chromium-based browser** (Chrome, Edge, Brave, etc.)
 
 ## Getting Started
 
 ### Installation
 
-1. Download and install Python from the official website:
+1. Download and install Node.js from the official website:
 
-   https://www.python.org/downloads/
+   https://nodejs.org/
 
-2. During installation, enable:
-
-   ✓ Add Python to PATH
-
-3. Verify installation by opening Command Prompt and running:
+2. Verify installation by opening Command Prompt and running:
 
    ```powershell
-   python --version
+   node --version
    ```
 
    A version number should be displayed.
@@ -67,27 +63,30 @@ The launcher will:
 
 ### Opening the app
 
-Open `index.html` via an HTTP server (see [Open Sentry Batch.bat](Open%20Sentry%20Batch.bat) or run `npx http-server -p 8080`). The app must be served over HTTP for ES modules and the Service Worker to work.
+The app must be served over HTTP for ES modules and the Service Worker to work. Double-click [Open Sentry Batch.bat](Open%20Sentry%20Batch.bat) or run:
+
+```powershell
+npx --yes http-server -p 8080
+```
+
+Then open `http://localhost:8080/` in your browser.
 
 ### Configuration
 
 1. Open the **Settings** panel.
 2. Enable **VirusTotal** and/or **AbuseIPDB** via their toggle switches.
 3. Paste your API keys into the corresponding fields.
-4. Set a **CORS proxy prefix** if needed (see note below).
-5. Click **Test** to verify connectivity.
+4. Click **Test** to verify connectivity.
 
-> **Browser CORS note:** VirusTotal and AbuseIPDB do not send CORS headers, so browsers block direct `fetch()` calls from a page loaded via `http://`. You'll see "Blocked by browser (CORS)" even with a valid key. Fix it by setting a CORS proxy prefix in Settings — either a public proxy like `https://corsproxy.io/?url=` (quick testing only) or a self-hosted proxy (recommended for production).
+> **CORS note:** VirusTotal and AbuseIPDB do not send CORS headers, so browsers block direct `fetch()` calls from `http://localhost`. Sentry Batch has a built-in CORS proxy (`https://corsproxy.io`) — no additional configuration is needed.
 
 ### Troubleshooting
 
-#### Python is not installed
+#### Node.js is not installed
 
-If the launcher reports that Python could not be started, install Python from:
+If the launcher reports that Node.js could not be started, install Node.js from:
 
-https://www.python.org/downloads/
-
-Make sure "Add Python to PATH" was enabled during installation.
+https://nodejs.org/
 
 #### Port 8080 already in use
 
@@ -99,7 +98,7 @@ The application uses only localhost (127.0.0.1) and does not expose the server t
 
 ### Notes
 
-- The built-in Python HTTP server is only used to serve local application files.
+- The HTTP server is only used to serve local application files.
 - No backend service is required.
 - No data is uploaded to external servers except the threat intelligence APIs configured by the user.
 
@@ -107,18 +106,13 @@ The application uses only localhost (127.0.0.1) and does not expose the server t
 
 ```
 .
-├── index.html              # Main application entry point (routed via launcher)
-
+├── index.html              # Main application entry point
 ├── main.js                 # Core application logic and application controller
 ├── api.js                  # HTTP request layer with timeout
-├── utils.js                # Shared utility functions
 ├── cache.js                # localStorage cache with LRU eviction
-├── charts.js               # Chart visualization helpers
 ├── config.js               # Application configuration constants
 ├── intelligence.js         # AlienVault OTX / ThreatFox integration
 ├── parser.js               # IP list parser (CIDR, ranges, comments, dedup)
-├── table.js                # Virtual-scrolled table renderer
-├── ui.js                   # UI utilities and components
 ├── workflow.js             # File I/O, JSON helpers, and session persistence
 ├── sw.js                   # Service worker for offline app-shell caching
 ├── manifest.webmanifest    # Progressive Web App manifest
@@ -130,8 +124,6 @@ The application uses only localhost (127.0.0.1) and does not expose the server t
 ├── VERSION                 # Release version identifier
 ├── .gitignore
 ├── Open Sentry Batch.bat   # Windows launcher script
-├── assets/                 # Static assets (icons, images)
-├── docs/                   # Documentation
 └── examples/               # Example input files
     └── sample_ips.txt
 ```
@@ -157,10 +149,10 @@ The application uses only localhost (127.0.0.1) and does not expose the server t
 
 - **Internet connection required** — All analysis is performed via live API calls. No results are available offline.
 - **API rate limits apply** — VirusTotal's public tier allows 4 requests/minute (500/day). AbuseIPDB's free tier allows 1,000 checks/day. Premium tiers remove or raise these limits.
-- **CORS proxy may be required** — VirusTotal and AbuseIPDB do not send browser CORS headers. A CORS proxy (public or self-hosted) is needed when running from `http://localhost`. See Configuration above.
+- **CORS proxy required** — VirusTotal and AbuseIPDB do not send browser CORS headers. Sentry Batch includes a built-in CORS proxy (`corsproxy.io`) — no user configuration is needed.
 - **Modern browser required** — The application uses ES modules, Service Workers, and other modern web APIs. Internet Explorer and older browsers are not supported.
 - **Maximum 1,000 IPs per batch** — Input lists exceeding 1,000 unique entries are truncated to the first 1,000.
-- **Domains are resolved before checking** — Domain analysis resolves to an IP first. The IP is then checked against threat feeds. Domain-only intelligence (e.g., WHOIS) is not collected.
+- **Domains are resolved before checking** — Domain analysis resolves to an IP first via DNS-over-HTTPS (Google, Cloudflare, Quad9). If live DNS fails, VirusTotal passive DNS is used as a fallback to resolve dead domains to their last known IPs.
 
 ## Acknowledgments
 
@@ -172,6 +164,8 @@ Sentry Batch uses data and services from:
 - **[ThreatFox](https://threatfox.abuse.ch)** — Malware indicator sharing platform
 - **[ipapi.co](https://ipapi.co)** — IP geolocation data
 - **[Google Public DNS](https://developers.google.com/speed/public-dns)** — DNS-over-HTTPS resolution
+- **[Cloudflare DNS](https://cloudflare-dns.com)** — DNS-over-HTTPS resolution (fallback)
+- **[Quad9 DNS](https://quad9.net)** — DNS-over-HTTPS resolution (fallback)
 - **[Chart.js](https://www.chartjs.org)** — Visualization library
 
 ## License
