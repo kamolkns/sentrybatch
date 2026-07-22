@@ -385,15 +385,35 @@ function expandHyphenRange(range){
 }
 
 async function resolveDomain(domain){
-  try{
-    const res = await apiFetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`);
-    if(!res.ok) throw new Error('DNS lookup failed');
-    const data = await res.json();
-    const answer = (data.Answer || []).find(a => a.type === 1);
-    return answer ? answer.data : null;
-  }catch(e){
-    return null;
+  const dnsProviders = [
+    { url: `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`, headers: {} },
+    { url: `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, headers: { 'accept': 'application/dns-json' } },
+    { url: `https://dns.quad9.net:5053/dns-query?name=${encodeURIComponent(domain)}&type=A`, headers: { 'accept': 'application/dns-json' } },
+  ];
+  for(const p of dnsProviders){
+    try{
+      const res = await apiFetch(p.url, { headers: p.headers });
+      const data = await res.json();
+      const answer = (data.Answer || []).find(a => a.type === 1);
+      if(answer) return answer.data;
+    }catch(e){ continue; }
   }
+  // Fallback: try VirusTotal passive DNS for domains whose nameservers are dead
+  const vtKeyField = $('vtKey');
+  const vtKey = vtKeyField ? vtKeyField.value.trim() : '';
+  if(vtKey){
+    try{
+      const res = await apiFetch(proxied(`https://www.virustotal.com/api/v3/domains/${encodeURIComponent(domain)}`), { headers:{'x-apikey':vtKey} });
+      const data = await res.json();
+      const records = data?.data?.attributes?.last_dns_records || [];
+      const aRecord = records.find(r => r.type === 'A');
+      if(aRecord){
+        log(`Resolved ${domain} → ${aRecord.value} via VirusTotal passive DNS`, 'l-dim');
+        return aRecord.value;
+      }
+    }catch(e){}
+  }
+  return null;
 }
 
 // Parses raw textarea/file content into a token list (does NOT resolve domains or expand yet)
