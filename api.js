@@ -1,5 +1,9 @@
 import { APP_CONFIG } from './config.js';
-import { safeMessage } from './utils.js';
+
+function safeMessage(error){
+  const message = String(error && error.message || 'Request failed');
+  return message.replace(/(?:x-apikey|key|authorization)\s*[:=]\s*[^\s,;]+/gi, '$1: [redacted]');
+}
 
 export function withProxy(url, proxyPrefix = ''){
   return proxyPrefix ? proxyPrefix + encodeURIComponent(url) : url;
