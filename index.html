@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<script src="./guard.js"></script>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https:; upgrade-insecure-requests">
 <meta name="theme-color" content="#0A0E13">
@@ -215,7 +215,7 @@ html[data-theme="light"] .log-console{background:#f0f0f0;color:#333;}
 .card{background:var(--panel-2);border-radius:var(--radius);padding:8px 12px;}
 .card .k{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text-dim);font-weight:600;}
 .card .v{font-size:16px;font-family:var(--font-mono);font-weight:500;margin-top:2px;}
-.card .v.safe{color:var(--safe);}
+
 .card .v.mal{color:var(--malicious);}
 .card .sub2{font-size:10px;color:var(--text-dim);margin-top:2px;font-family:var(--font-mono);}
 .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
@@ -272,9 +272,7 @@ table.results tbody tr:focus-within{outline:none;background:var(--panel-2);}
 table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-dim);}
 
 .badge{padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;display:inline-block;vertical-align:middle;}
-.badge.safe{background:var(--safe-bg);color:var(--safe);}
 .badge.suspicious{background:var(--suspicious-bg);color:var(--suspicious);}
-.badge.risky{background:var(--risky-bg);color:var(--risky);}
 .badge.malicious{background:var(--malicious-bg);color:var(--malicious);}
 .badge.pending{background:var(--panel-2);color:var(--text-faint);}
 .badge.error{background:var(--malicious-bg);color:var(--malicious);}
@@ -310,7 +308,7 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
 .readme h3{color:var(--text);font-size:13px;margin:12px 0 4px;}
 .readme code{background:var(--panel-2);border:1px solid var(--border);padding:1px 5px;border-radius:3px;font-size:11px;color:var(--accent);}
 .readme ul{padding-left:18px;}
-.callout{background:rgba(204,167,0,0.06);border:1px solid var(--risky);color:var(--text);padding:6px 10px;border-radius:var(--radius);font-size:12px;margin:8px 0;}
+
 
 .footer-note{text-align:center;color:var(--text-faint);font-size:10px;margin-top:16px;}
 @media (max-width:600px){
@@ -696,8 +694,6 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <div class="footer-note">All processing happens locally in your browser. No analytics, no tracking, no server component.</div>
 </div>
 
-<!-- Row detail template -->
-<template id="detailTemplate"></template>
 
 <script type="module" src="./main.js?v=20260718"></script>
 </body>

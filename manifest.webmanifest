@@ -1,7 +1,7 @@
 {
   "name": "Sentry Batch",
   "short_name": "Sentry Batch",
-  "start_url": "./launcher.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#1b1b1b",

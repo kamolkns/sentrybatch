@@ -65,9 +65,9 @@ The launcher will:
 - wait until the server is ready
 - automatically open the application in the browser
 
-### Why launcher.html?
+### Opening the app
 
-Sentry Batch uses ES modules (`<script type="module">`), which are blocked by browsers when loading pages via the `file://` protocol. The launcher sets a sessionStorage flag and redirects to `index.html`, where `guard.js` checks for that flag. If you open `index.html` directly, the guard redirects to a helpful message explaining how to launch the application correctly.
+Open `index.html` via an HTTP server (see [Open Sentry Batch.bat](Open%20Sentry%20Batch.bat) or run `npx http-server -p 8080`). The app must be served over HTTP for ES modules and the Service Worker to work.
 
 ### Configuration
 
@@ -108,8 +108,7 @@ The application uses only localhost (127.0.0.1) and does not expose the server t
 ```
 .
 ├── index.html              # Main application entry point (routed via launcher)
-├── launcher.html           # Bootstrapper that sets launch context
-├── guard.js                # Launch guard — prevents direct file:// access
+
 ├── main.js                 # Core application logic and application controller
 ├── api.js                  # HTTP request layer with timeout
 ├── utils.js                # Shared utility functions

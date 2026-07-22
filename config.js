@@ -20,7 +20,6 @@ export const STORAGE_KEYS = Object.freeze({
   cachePrefix: 'sb_cache_',
   vtUsage: 'sb_vt_usage_',
   history: 'sb_history',
-  iocHistory: 'sb_ioc_history',
   notes: 'sb_notes',
   tags: 'sb_tags',
   savedSearches: 'sb_saved_searches',

@@ -1,8 +1,6 @@
 const CACHE_NAME = 'sentry-batch-shell-v5';
 const APP_SHELL = [
-  './launcher.html',
   './index.html',
-  './guard.js',
   './main.js',
   './api.js',
   './utils.js',
