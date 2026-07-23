@@ -1,7 +1,7 @@
 # Sentry Batch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/badge/release-v1.1.1-blue)](https://github.com/kamolkns/sentrybatch/releases)
+[![GitHub release](https://img.shields.io/badge/release-v1.2.0-blue)](https://github.com/kamolkns/sentrybatch/releases)
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES%20Modules-yellow)](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
@@ -34,74 +34,28 @@ Bulk IP reputation and threat intelligence console. Analyze hundreds of IP addre
 
 ## Getting Started
 
-### Installation
-
-Install Node.js using your preferred method:
-
-<details>
-<summary><b>Windows</b></summary>
-
-1. Download and install Node.js from https://nodejs.org/
-2. Verify: `node --version`
-</details>
-
-<details>
-<summary><b>Arch Linux</b></summary>
-
-```bash
-sudo pacman -S nodejs npm
-node --version
-```
-</details>
-
-<details>
-<summary><b>Debian / Ubuntu</b></summary>
-
-```bash
-sudo apt update
-sudo apt install nodejs npm
-node --version
-```
-</details>
-
-<details>
-<summary><b>NixOS</b></summary>
-
-```bash
-nix-shell -p nodejs
-# or add to configuration.nix:
-#   environment.systemPackages = with pkgs; [ nodejs ];
-```
-</details>
-
-<details>
-<summary><b>macOS</b></summary>
-
-```bash
-brew install node
-# or download from https://nodejs.org/
-```
-</details>
-
-### Starting Sentry Batch
+### Quick Start
 
 **Windows:** Double-click `Open Sentry Batch.bat`
 
-**Linux / macOS:** Make the script executable and run it:
+**Linux / macOS:**
 
 ```bash
 chmod +x start.sh
 ./start.sh
 ```
 
-Both launchers will:
+The launcher will:
+- detect your OS and package manager
+- auto-install Node.js v18+ if missing (via winget, Chocolatey, apt, pacman, dnf, brew, or direct download)
+- verify npm/npx are available
+- check internet connectivity
+- find a free port (default 8080, falls back if busy)
 - start the local HTTP server
-- wait until the server is ready
-- automatically open the application in the browser
+- probe the server until it responds
+- open the application in your default browser
 
-### Opening the app
-
-The app must be served over HTTP for ES modules and the Service Worker to work. Use one of the launchers above or run manually:
+**Manual start** (if you prefer not using the launcher):
 
 ```bash
 npx --yes http-server -p 8080
@@ -122,15 +76,15 @@ Then open `http://localhost:8080/` in your browser.
 
 #### Node.js is not installed
 
-If the launcher reports that Node.js could not be started:
-
-- **Windows:** Download from https://nodejs.org/
-- **Linux:** Use your package manager (see Installation section)
-- **macOS:** `brew install node` or download from https://nodejs.org/
+Both launchers will auto-install Node.js v18+ using your system's package manager or direct download. If automatic installation fails, install manually from https://nodejs.org/
 
 #### Port 8080 already in use
 
-If another application is using port 8080, close that application and launch Sentry Batch again.
+The launcher will automatically detect this and try the next available port (8081, 8082, etc.). You can also specify a custom port:
+
+```bash
+./start.sh --port 9090
+```
 
 #### Windows Firewall
 
@@ -163,6 +117,7 @@ The application uses only localhost (127.0.0.1) and does not expose the server t
 ├── SECURITY.md
 ├── VERSION                 # Release version identifier
 ├── .gitignore
+├── start.sh                # Linux/macOS launcher script
 ├── Open Sentry Batch.bat   # Windows launcher script
 └── examples/               # Example input files
     └── sample_ips.txt
