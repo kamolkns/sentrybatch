@@ -20,212 +20,356 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
 <style>
 /* =========================================================================
-   DESIGN TOKENS
-   Subject: a SOC analyst's bulk threat-intel console. Dark ops palette,
-   monospace data face for anything numeric/tabular, Inter for UI chrome.
+   DESIGN SYSTEM — Sentry Batch v1.3
+   SOC analyst threat-intel console. Dark ops palette,
+   monospace for data, Inter for UI chrome.
    ========================================================================= */
+
+/* ---------- Colors: Dark (default) ---------- */
 :root{
-  --bg:            #1b1b1b;
-  --panel:         #202124;
-  --panel-2:       #252526;
-  --border:        #3c3c3c;
-  --border-soft:   #333333;
-  --text:          #cccccc;
-  --text-dim:      #999999;
-  --text-faint:    #666666;
-  --accent:        #4fc1ff;
-  --accent-dim:    #1a3a52;
+  --bg:            #0f1117;
+  --card:          #171a22;
+  --card-2:        #1e212a;
+  --border:        #282c36;
+  --border-soft:   #22252e;
+  --text:          #e4e7ed;
+  --text-dim:      #969eb0;
+  --text-faint:    #5d6578;
+  --accent:        #5b9bd5;
+  --accent-dim:    rgba(91,155,213,0.12);
   --safe:          #4ec9b0;
-  --safe-bg:       rgba(78,201,176,0.12);
-  --suspicious:    #dcdcaa;
-  --suspicious-bg: rgba(220,220,170,0.12);
-  --risky:         #cca700;
-  --risky-bg:      rgba(204,167,0,0.12);
-  --malicious:     #f14c4c;
-  --malicious-bg:  rgba(241,76,76,0.12);
+  --safe-bg:       rgba(78,201,176,0.10);
+  --suspicious:    #d4c97a;
+  --suspicious-bg: rgba(212,201,122,0.10);
+  --risky:         #d99a4a;
+  --risky-bg:      rgba(217,154,74,0.10);
+  --malicious:     #d96060;
+  --malicious-bg:  rgba(217,96,96,0.10);
+  --idle:          #969eb0;
+  --running:       #5b9bd5;
+  --disabled:      #5d6578;
+
+  /* Typography */
   --font-ui:       'Segoe UI', system-ui, sans-serif;
   --font-mono:     'Cascadia Code', 'Consolas', 'SF Mono', monospace;
-  --radius:        3px;
-  --shadow:        none;
-}
-html[data-theme="light"]{
-  --bg:            #f3f3f3;
-  --panel:         #ffffff;
-  --panel-2:       #f5f5f5;
-  --border:        #d0d0d0;
-  --border-soft:   #e0e0e0;
-  --text:          #1a1a1a;
-  --text-dim:      #555555;
-  --text-faint:    #888888;
-  --accent:        #0078d4;
-  --accent-dim:    #deecf9;
-  --safe:          #107c10;
-  --safe-bg:       rgba(16,124,16,0.10);
-  --suspicious:    #7a6b00;
-  --suspicious-bg: rgba(122,107,0,0.10);
-  --risky:         #b05200;
-  --risky-bg:      rgba(176,82,0,0.10);
-  --malicious:     #c82f45;
-  --malicious-bg:  rgba(200,47,69,0.10);
-  --shadow:        none;
+
+  /* Spacing scale: 2 4 8 12 16 24 32 */
+  --space-2:       2px;
+  --space-4:       4px;
+  --space-8:       8px;
+  --space-12:      12px;
+  --space-16:      16px;
+  --space-24:      24px;
+  --space-32:      32px;
+
+  /* Shape */
+  --radius:        6px;
+  --radius-sm:     4px;
+  --radius-lg:     8px;
+
+  /* Elevation */
+  --shadow-sm:     0 1px 2px rgba(0,0,0,0.32);
+  --shadow-md:     0 4px 12px rgba(0,0,0,0.36);
+
+  /* Motion */
+  --transition:    150ms ease;
 }
 
+/* ---------- Colors: Light ---------- */
+html[data-theme="light"]{
+  --bg:            #f2f3f6;
+  --card:          #ffffff;
+  --card-2:        #ecedf0;
+  --border:        #d1d3d9;
+  --border-soft:   #dddfe4;
+  --text:          #15181f;
+  --text-dim:      #596070;
+  --text-faint:    #8f96a4;
+  --accent:        #4a8dc7;
+  --accent-dim:    rgba(74,141,199,0.10);
+  --safe:          #3da08a;
+  --safe-bg:       rgba(61,160,138,0.08);
+  --suspicious:    #9e8f30;
+  --suspicious-bg: rgba(158,143,48,0.07);
+  --risky:         #b87328;
+  --risky-bg:      rgba(184,115,40,0.07);
+  --malicious:     #ba4040;
+  --malicious-bg:  rgba(186,64,64,0.07);
+  --idle:          #8f96a4;
+  --running:       #4a8dc7;
+  --disabled:      #b0b5c0;
+  --shadow-sm:     0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md:     0 4px 12px rgba(0,0,0,0.06);
+}
+
+/* =========================================================================
+   BASE
+   ========================================================================= */
 *{box-sizing:border-box;}
-body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);
-  -webkit-font-smoothing:antialiased;font-size:13px;}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:var(--font-ui);-webkit-font-smoothing:antialiased;
+  font-size:13px;line-height:1.5;
+}
 ::selection{background:var(--accent-dim);color:var(--text);}
 ::-webkit-scrollbar{width:6px;height:6px;}
-::-webkit-scrollbar-track{background:var(--panel);}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
-
-a{color:var(--accent);}
-button{font-family:var(--font-ui);cursor:pointer;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:var(--radius-sm);}
+a{color:var(--accent);text-decoration:none;}
+a:hover{text-decoration:underline;}
 input,select,textarea{font-family:var(--font-mono);font-size:12px;}
 ::placeholder{color:var(--text-faint);}
 
-.wrap{max-width:1360px;margin:0 auto;padding:10px 14px 40px;}
+/* =========================================================================
+   ICONS
+   ========================================================================= */
+.icon{width:16px;height:16px;flex-shrink:0;}
 
-/* ---------- Top bar ---------- */
+/* =========================================================================
+   LAYOUT
+   ========================================================================= */
+.wrap{max-width:1360px;margin:0 auto;padding:var(--space-12) var(--space-16) 48px;}
+
+/* =========================================================================
+   TOP BAR
+   ========================================================================= */
 header.topbar{
   display:flex;align-items:center;justify-content:space-between;
-  padding:8px 0 8px;border-bottom:1px solid var(--border);margin-bottom:10px;
+  padding:var(--space-8) 0;border-bottom:1px solid var(--border);margin-bottom:var(--space-12);
 }
-.brand{display:flex;align-items:center;gap:8px;}
-.brand-mark{
-  width:24px;height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-}
+.brand{display:flex;align-items:center;gap:var(--space-8);}
+.brand-mark{width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
 .brand-logo{width:20px;height:20px;display:block;}
-.brand h1{font-size:13px;margin:0;font-weight:600;}
-.brand .sub{font-size:11px;color:var(--text-faint);margin-top:0;}
-.top-actions{display:flex;align-items:center;gap:6px;}
-.pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--text-faint);display:inline-block;margin-right:4px;}
-.pulse-dot.live{background:var(--safe);}
+.brand h1{font-size:15px;margin:0;font-weight:700;letter-spacing:-0.3px;}
+.brand .sub{font-size:11px;color:var(--text-faint);margin:0;line-height:1.3;}
+.top-actions{display:flex;align-items:center;gap:var(--space-6,6px);}
+
+/* ---------- Status indicator ---------- */
+.status-indicator{
+  display:inline-flex;align-items:center;gap:var(--space-6,6px);
+  background:var(--card);border:1px solid var(--border);color:var(--text-dim);
+  border-radius:var(--radius);padding:4px 10px;font-size:12px;height:28px;
+  cursor:default;
+}
+.status-dot{
+  width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;
+  background:var(--idle);transition:background var(--transition);
+}
+.status-dot.idle{background:var(--idle);}
+.status-dot.running{background:var(--running);}
+.status-dot.running.pulse{animation:pulse 2s ease-in-out infinite;}
+.status-dot.connected{background:var(--safe);}
+.status-dot.disconnected{background:var(--malicious);}
+.status-dot.disabled{background:var(--disabled);}
+@keyframes pulse{
+  0%,100%{opacity:1;}
+  50%{opacity:0.4;}
+}
 
 .icon-btn{
-  background:var(--panel);border:1px solid var(--border);color:var(--text-dim);
-  border-radius:var(--radius);padding:4px 8px;font-size:12px;display:flex;align-items:center;gap:4px;
+  background:var(--card);border:1px solid var(--border);color:var(--text-dim);
+  border-radius:var(--radius);padding:4px 10px;font-size:12px;
+  display:inline-flex;align-items:center;gap:var(--space-6,6px);height:28px;
+  cursor:pointer;font-family:var(--font-ui);
+  transition:border-color var(--transition), color var(--transition), background var(--transition);
 }
-.icon-btn:hover{border-color:var(--accent);color:var(--text);background:var(--panel-2);}
-.icon-btn:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
-  outline:1px solid var(--accent);outline-offset:1px;
+.icon-btn:hover{border-color:var(--accent);color:var(--text);background:var(--card-2);}
+
+/* =========================================================================
+   FOCUS
+   ========================================================================= */
+:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
 }
 
-/* ---------- Panels ---------- */
-.panel{
-  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
-  margin-bottom:10px;overflow:hidden;
+/* =========================================================================
+   BUTTONS
+   ========================================================================= */
+
+/* --- Base --- */
+.btn{
+  background:var(--card-2);border:1px solid var(--border);color:var(--text);
+  padding:5px 12px;border-radius:var(--radius);font-size:12px;font-weight:500;
+  height:28px;display:inline-flex;align-items:center;gap:5px;
+  cursor:pointer;font-family:var(--font-ui);white-space:nowrap;
+  transition:border-color var(--transition), background var(--transition), box-shadow var(--transition);
 }
+.btn:hover{border-color:var(--accent);color:var(--text);background:var(--card);}
+.btn:active{background:var(--accent-dim);}
+
+/* --- Primary --- */
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+.btn.primary:hover{filter:brightness(1.12);background:var(--accent);}
+.btn.primary:active{filter:brightness(0.92);}
+
+/* --- Danger --- */
+.btn.danger{border-color:var(--malicious);color:var(--malicious);background:transparent;}
+.btn.danger:hover{background:var(--malicious-bg);color:var(--malicious);}
+
+/* --- Ghost --- */
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-dim);}
+.btn.ghost:hover{background:var(--card-2);border-color:var(--border);color:var(--text);}
+
+/* --- Disabled --- */
+.btn:disabled{opacity:0.35;cursor:not-allowed;filter:none;pointer-events:none;}
+.btn-row{display:flex;gap:var(--space-6,6px);flex-wrap:wrap;align-items:center;}
+
+/* =========================================================================
+   PANELS
+   ========================================================================= */
+
+/* --- Primary workflow panels (elevated) --- */
+.panel{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:var(--space-10,10px);overflow:hidden;box-shadow:var(--shadow-sm);
+}
+#panelSingle.panel, #panelBulk.panel, #panelSummary.panel, #panelTable.panel{
+  background:var(--card);
+}
+
+/* --- Supporting panels (de-emphasized) --- */
+#panelProgress.panel, #panelViz.panel{background:var(--bg);border-color:var(--border-soft);}
+#panelProgress .panel-head:hover, #panelViz .panel-head:hover{background:var(--card);}
+
+/* --- Utility panels (lowest emphasis) --- */
+#panelSettings.panel, #panelAnalyst.panel, #panelReadme.panel{
+  background:var(--bg);border-color:var(--border-soft);
+}
+#panelSettings .panel-head:hover, #panelAnalyst .panel-head:hover, #panelReadme .panel-head:hover{background:var(--card);}
+#panelSettings .panel-body, #panelAnalyst .panel-body, #panelReadme .panel-body{border-top-color:var(--border-soft);}
+
 .panel-head{
   display:flex;align-items:center;justify-content:space-between;
-  padding:7px 12px;cursor:pointer;user-select:none;
+  padding:var(--space-8) var(--space-12);cursor:pointer;user-select:none;
+  transition:background var(--transition);
 }
-.panel-head:hover{background:var(--panel-2);}
-#panelSettings.panel, #panelAnalyst.panel, #panelReadme.panel{background:var(--panel-2);border-color:var(--border-soft);}
-#panelSettings .panel-head:hover, #panelAnalyst .panel-head:hover, #panelReadme .panel-head:hover{background:var(--panel);}
-#panelSettings .panel-body, #panelAnalyst .panel-body, #panelReadme .panel-body{border-top-color:var(--border-soft);}
-.panel-head h2{font-size:12px;margin:0;font-weight:600;color:var(--text);}
-.panel-head .chev{font-size:10px;color:var(--text-faint);}
+.panel-head:hover{background:var(--card-2);}
+.panel-head h2{
+  font-size:11px;margin:0;font-weight:600;color:var(--text-dim);
+  display:flex;align-items:center;gap:var(--space-6,6px);
+  text-transform:uppercase;letter-spacing:0.5px;
+}
+.panel-head .chev{color:var(--text-faint);transition:transform var(--transition);display:flex;}
 .panel.collapsed .chev{transform:rotate(-90deg);}
 .panel.collapsed .panel-body{display:none;}
-.panel-body{padding:12px;border-top:1px solid var(--border);}
+.panel-body{padding:var(--space-12);border-top:1px solid var(--border);}
 
-.field-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+/* =========================================================================
+   FORM FIELDS
+   ========================================================================= */
+.field-row{display:flex;gap:var(--space-8);flex-wrap:wrap;margin-bottom:var(--space-8);}
 .field{flex:1;min-width:160px;}
-.field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;font-weight:500;}
+.field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:var(--space-4);font-weight:500;}
 .field input[type=text], .field input[type=number], .field input[type=password], .field select{
-  width:100%;background:var(--panel-2);border:1px solid var(--border-soft);color:var(--text);
-  padding:5px 8px;border-radius:var(--radius);font-size:12px;
+  width:100%;background:var(--card-2);border:1px solid var(--border-soft);color:var(--text);
+  padding:5px 8px;border-radius:var(--radius);font-size:12px;height:28px;
+  transition:border-color var(--transition);
 }
 .field input:focus, .field select:focus, textarea:focus{border-color:var(--accent);}
 .key-field{position:relative;}
 .key-field input{padding-right:30px;}
 .key-visibility{
   position:absolute;right:4px;top:50%;transform:translateY(-50%);
-  width:24px;height:24px;padding:0;border-radius:var(--radius);border:1px solid transparent;
+  width:24px;height:24px;padding:0;border-radius:var(--radius-sm);border:1px solid transparent;
   background:transparent;color:var(--text-dim);display:flex;align-items:center;justify-content:center;
-  font-size:13px;line-height:1;
+  transition:color var(--transition);
 }
 .key-visibility:hover{color:var(--text);}
-.hint{font-size:11px;color:var(--text-faint);margin-top:3px;}
-.btn{
-  background:var(--panel-2);border:1px solid var(--border);color:var(--text);
-  padding:4px 10px;border-radius:var(--radius);font-size:12px;font-weight:500;
-}
-.btn:hover{border-color:var(--accent);}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#1b1b1b;font-weight:600;}
-.btn.primary:hover{background:#6dbfff;border-color:#6dbfff;}
-.btn.danger{border-color:var(--malicious);color:var(--malicious);}
-.btn.danger:hover{background:var(--malicious-bg);}
-.btn:disabled{opacity:.4;cursor:not-allowed;}
-.btn-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.hint{font-size:11px;color:var(--text-faint);margin-top:var(--space-2);}
 
+/* =========================================================================
+   TOGGLE SWITCH
+   ========================================================================= */
 .toggle-btn{
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  display:flex;align-items:center;justify-content:space-between;gap:var(--space-8);
   width:100%;min-height:30px;padding:5px 10px;cursor:pointer;
-  font-size:12px;color:var(--text-dim);background:var(--panel-2);
+  font-size:12px;color:var(--text-dim);background:var(--card-2);
   border:1px solid var(--border);border-radius:var(--radius);
+  font-family:var(--font-ui);transition:border-color var(--transition), background var(--transition);
 }
 .toggle-btn:hover{border-color:var(--accent);color:var(--text);}
 .toggle-btn .toggle-label{font-weight:500;flex:1;min-width:0;text-align:left;}
 .toggle-btn .toggle-state{
-  min-width:36px;padding:3px 8px;border-radius:3px;
-  background:var(--panel);border:1px solid var(--border);
+  min-width:36px;padding:3px 8px;border-radius:var(--radius-sm);
+  background:var(--card);border:1px solid var(--border);
   color:var(--text-dim);text-align:center;font-size:10px;font-weight:600;
+  transition:background var(--transition), border-color var(--transition);
 }
 .toggle-btn.on{
-  border-color:var(--safe);
-  color:var(--text);
-  background:var(--safe-bg);
+  border-color:var(--safe);color:var(--text);background:var(--safe-bg);
 }
 .toggle-btn.on .toggle-state{
-  background:var(--safe);
-  border-color:var(--safe);
-  color:#1b1b1b;
+  background:var(--safe);border-color:var(--safe);color:#fff;
 }
 
-textarea#ipInput{width:100%;min-height:95px;background:var(--panel-2);border:1px solid var(--border-soft);
-  color:var(--text);padding:6px 8px;border-radius:var(--radius);font-size:12px;resize:vertical;line-height:1.45;}
+/* =========================================================================
+   TEXTAREA / DROPZONE
+   ========================================================================= */
+textarea#ipInput{width:100%;min-height:95px;background:var(--card-2);border:1px solid var(--border-soft);
+  color:var(--text);padding:var(--space-6,6px) var(--space-8);border-radius:var(--radius);
+  font-size:12px;resize:vertical;line-height:1.45;}
 
 .dropzone{
-  border:1px dashed var(--border);border-radius:var(--radius);padding:10px;text-align:center;
-  color:var(--text-faint);font-size:12px;margin-bottom:8px;cursor:pointer;
+  border:1px dashed var(--border);border-radius:var(--radius);padding:var(--space-10,10px);
+  text-align:center;color:var(--text-faint);font-size:12px;margin-bottom:var(--space-8);
+  cursor:pointer;transition:border-color var(--transition), background var(--transition);
 }
 .dropzone.drag{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
 
-.count-strip{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--text-dim);margin-top:2px;}
+.count-strip{display:flex;gap:var(--space-10,10px);flex-wrap:wrap;font-size:11px;color:var(--text-dim);margin-top:var(--space-2);}
 .count-strip b{color:var(--text);font-family:var(--font-mono);}
 
-/* ---------- progress ---------- */
-.progress-track{width:100%;height:4px;background:var(--panel-2);border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);}
-.progress-fill{height:100%;background:var(--accent);width:0%;}
-.progress-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:4px;font-family:var(--font-mono);}
+/* =========================================================================
+   PROGRESS
+   ========================================================================= */
+.progress-track{width:100%;height:4px;background:var(--card-2);border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border);}
+.progress-fill{height:100%;background:var(--accent);width:0%;transition:width 300ms ease;}
+.progress-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:var(--space-4);font-family:var(--font-mono);}
 
+/* =========================================================================
+   LOG CONSOLE
+   ========================================================================= */
 .log-console{
-  background:#111;border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;
-  height:110px;overflow-y:auto;font-family:var(--font-mono);font-size:11px;line-height:1.55;color:var(--safe);
-  margin-top:8px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:var(--space-6,6px) var(--space-10,10px);
+  height:110px;overflow-y:auto;font-family:var(--font-mono);
+  font-size:11px;line-height:1.55;color:var(--text-dim);
+  margin-top:var(--space-8);
 }
-html[data-theme="light"] .log-console{background:#f0f0f0;color:#333;}
 .log-console .l-err{color:var(--malicious);}
 .log-console .l-warn{color:var(--risky);}
 .log-console .l-dim{color:var(--text-faint);}
 
-/* ---------- summary cards ---------- */
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;}
-.card{background:var(--panel-2);border-radius:var(--radius);padding:8px 12px;}
-.card .k{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text-dim);font-weight:600;}
-.card .v{font-size:16px;font-family:var(--font-mono);font-weight:500;margin-top:2px;}
-
+/* =========================================================================
+   SUMMARY CARDS
+   ========================================================================= */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--space-8);}
+.card{
+  background:var(--card-2);border-radius:var(--radius);padding:var(--space-8) var(--space-12);
+}
+.card .k{
+  font-size:10px;text-transform:uppercase;letter-spacing:0.5px;
+  color:var(--text-faint);font-weight:600;
+}
+.card .v{
+  font-size:18px;font-family:var(--font-mono);font-weight:600;
+  margin-top:var(--space-2);color:var(--text);
+}
 .card .v.mal{color:var(--malicious);}
-.card .sub2{font-size:10px;color:var(--text-dim);margin-top:2px;font-family:var(--font-mono);}
-.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
-.chart-box{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;height:180px;}
+.card .sub2{font-size:10px;color:var(--text-dim);margin-top:var(--space-2);font-family:var(--font-mono);}
+
+/* =========================================================================
+   CHARTS
+   ========================================================================= */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-10,10px);margin-top:var(--space-12);}
+.chart-box{background:var(--card-2);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-8);height:180px;}
 @media (max-width:720px){.chart-row{grid-template-columns:1fr;}}
-.viz-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px;}
+
+.viz-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-10,10px);margin-top:var(--space-12);}
 .viz-wide{grid-column:1 / -1;}
-.viz-card{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;min-height:200px;}
-.viz-card h3{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--text);}
-.viz-card .subtle{margin:2px 0 0;color:var(--text-dim);font-size:11px;}
+.viz-card{background:var(--card-2);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-8);min-height:200px;}
+.viz-card h3{margin:0 0 var(--space-6,6px);font-size:12px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:var(--space-6,6px);}
+.viz-card .subtle{margin:var(--space-2) 0 0;color:var(--text-faint);font-size:11px;}
 .viz-card canvas{width:100% !important;height:155px !important;}
 .viz-map{width:100%;height:260px;display:block;}
 .viz-heatmap{width:100%;height:240px;display:block;}
@@ -239,82 +383,164 @@ html[data-theme="light"] .log-console{background:#f0f0f0;color:#333;}
   .search-box{min-width:0;width:100%;}
   .field-row{flex-direction:column;}
   .field{min-width:0;}
-  .panel-body{padding:8px;}
-  .card{padding:6px 10px;}
-  .toggle-btn{min-height:28px;padding:4px 8px;}
-  .toggle-btn .toggle-state{min-width:28px;padding:2px 5px;}
+  .panel-body{padding:var(--space-8);}
+  .card{padding:var(--space-6,6px) var(--space-10,10px);}
+  .toggle-btn{min-height:28px;padding:var(--space-4) var(--space-8);}
+  .toggle-btn .toggle-state{min-width:28px;padding:var(--space-2) 5px;}
 }
 
-/* ---------- table ---------- */
-.table-tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;justify-content:space-between;}
-.table-tools .left, .table-tools .right{display:flex;gap:4px;flex-wrap:wrap;align-items:center;}
-.search-box{background:var(--panel-2);border:1px solid var(--border-soft);border-radius:var(--radius);padding:4px 7px;font-size:12px;color:var(--text);min-width:140px;cursor:text;}
-.pill{padding:3px 8px;border-radius:3px;background:var(--panel-2);border:1px solid var(--border);font-size:11px;color:var(--text-dim);cursor:pointer;}
-.pill:hover{border-color:var(--accent);color:var(--text);background:var(--panel);}
+/* =========================================================================
+   EXPORT DROPDOWN
+   ========================================================================= */
+.dropdown{position:relative;display:inline-block;}
+.dropdown-menu{
+  position:absolute;right:0;top:calc(100% + 4px);z-index:100;
+  min-width:180px;background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);box-shadow:var(--shadow-md);
+  padding:var(--space-4);display:none;flex-direction:column;gap:2px;
+}
+.dropdown-menu.open{display:flex;}
+.dropdown-item{
+  display:flex;align-items:center;gap:var(--space-6,6px);padding:6px 10px;
+  border:none;background:transparent;color:var(--text);font-size:12px;
+  border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-ui);
+  white-space:nowrap;transition:background var(--transition);
+}
+.dropdown-item:hover{background:var(--card-2);color:var(--text);}
+.dropdown-item:active{background:var(--accent-dim);}
+.dropdown-item .icon{color:var(--text-dim);}
+
+/* =========================================================================
+   TABLE
+   ========================================================================= */
+.table-tools{
+  display:flex;gap:var(--space-6,6px);flex-wrap:wrap;align-items:center;
+  margin-bottom:var(--space-10,10px);justify-content:space-between;
+}
+.table-tools .left, .table-tools .right{display:flex;gap:var(--space-4);flex-wrap:wrap;align-items:center;}
+.search-box{background:var(--card-2);border:1px solid var(--border-soft);border-radius:var(--radius);
+  padding:4px 8px;font-size:12px;color:var(--text);min-width:140px;cursor:text;height:28px;}
+.pill{
+  padding:3px 8px;border-radius:var(--radius-sm);background:var(--card-2);border:1px solid var(--border);
+  font-size:11px;color:var(--text-dim);cursor:pointer;height:24px;display:inline-flex;align-items:center;
+  transition:border-color var(--transition), color var(--transition), background var(--transition);
+}
+.pill:hover{border-color:var(--accent);color:var(--text);background:var(--card);}
 .pill.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
 
 .table-scroll{overflow:auto;max-height:500px;border:1px solid var(--border);border-radius:var(--radius);}
 table.results{border-collapse:collapse;width:100%;font-size:12px;font-family:var(--font-mono);min-width:1400px;}
 table.results thead th{
-  background:var(--panel-2);color:var(--text-dim);text-align:left;padding:4px 8px;
-  font-size:10px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;cursor:pointer;
+  background:var(--card-2);color:var(--text-faint);text-align:left;padding:6px 10px;
+  font-size:10px;text-transform:uppercase;letter-spacing:0.5px;position:sticky;top:0;cursor:pointer;
   border-bottom:2px solid var(--border);white-space:nowrap;user-select:none;font-weight:600;
 }
 table.results thead th:hover{color:var(--text);}
-table.results thead th .arrow{font-size:8px;color:var(--accent);margin-left:4px;}
-table.results tbody td{padding:4px 8px;border-bottom:1px solid var(--border-soft);white-space:nowrap;color:var(--text);vertical-align:middle;}
+table.results thead th .arrow{color:var(--accent);margin-left:var(--space-4);font-size:8px;}
+table.results tbody td{padding:6px 10px;border-bottom:1px solid var(--border-soft);white-space:nowrap;color:var(--text);vertical-align:middle;}
 table.results tbody td:nth-child(9){text-align:right;}
-table.results tbody td:first-child{padding-left:10px;border-left:2px solid transparent;}
+table.results tbody td:first-child{padding-left:var(--space-12);border-left:2px solid transparent;}
 table.results tbody tr.row-expand:has(+ tr.detail-row) td:first-child{border-left-color:var(--accent);}
-table.results tbody tr:nth-child(even){background:rgba(255,255,255,0.025);}
-table.results tbody tr:hover{background:var(--panel-2);}
-table.results tbody tr:focus-within{outline:none;background:var(--panel-2);}
+table.results tbody tr:nth-child(even){background:rgba(255,255,255,0.015);}
+table.results tbody tr:hover{background:var(--card-2);}
+table.results tbody tr:focus-within{outline:none;background:var(--card-2);}
 table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-dim);}
 
-.badge{padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;display:inline-block;vertical-align:middle;}
+/* =========================================================================
+   BADGES
+   ========================================================================= */
+.badge{padding:2px 7px;border-radius:var(--radius-sm);font-size:10px;font-weight:600;display:inline-block;vertical-align:middle;}
 .badge.suspicious{background:var(--suspicious-bg);color:var(--suspicious);}
 .badge.malicious{background:var(--malicious-bg);color:var(--malicious);}
-.badge.pending{background:var(--panel-2);color:var(--text-faint);}
+.badge.pending{background:transparent;color:var(--text-faint);border:1px solid var(--border);}
 .badge.error{background:var(--malicious-bg);color:var(--malicious);}
 
-.score-cell{display:flex;align-items:center;gap:4px;min-width:80px;}
-.score-bar-track{width:44px;height:4px;background:var(--panel);border-radius:2px;overflow:hidden;border:1px solid var(--border-soft);}
+/* =========================================================================
+   SCORE
+   ========================================================================= */
+.score-cell{display:flex;align-items:center;gap:var(--space-4);min-width:80px;}
+.score-bar-track{width:44px;height:4px;background:var(--card);border-radius:2px;overflow:hidden;border:1px solid var(--border-soft);}
 .score-bar-fill{height:100%;}
 .score-num{font-weight:700;min-width:24px;text-align:right;}
 
+/* =========================================================================
+   TABLE ROW ACTIONS
+   ========================================================================= */
 .row-expand{cursor:pointer;}
-.row-actions{display:flex;gap:3px;flex-wrap:nowrap;}
+.row-actions{display:flex;gap:var(--space-4);flex-wrap:nowrap;}
 .row-actions button{
-  padding:1px 5px;font-size:10px;border-radius:var(--radius);background:var(--panel);
-  border:1px solid var(--border);color:var(--text-dim);white-space:nowrap;
+  padding:1px 6px;font-size:10px;border-radius:var(--radius-sm);background:var(--card);
+  border:1px solid var(--border);color:var(--text-dim);white-space:nowrap;height:auto;gap:3px;
+  transition:border-color var(--transition), color var(--transition);
 }
 .row-actions button:hover{border-color:var(--accent);color:var(--text);}
 .row-actions button.danger:hover{border-color:var(--malicious);color:var(--malicious);}
 .status-detail{font-size:10px;color:var(--text-faint);display:block;margin-top:1px;max-width:130px;white-space:normal;line-height:1.25;}
-.api-pills{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:11px;font-family:var(--font-mono);}
-.api-pill{padding:2px 7px;border-radius:3px;border:1px solid var(--border);background:var(--panel-2);color:var(--text-dim);}
+
+/* =========================================================================
+   API PILLS
+   ========================================================================= */
+.api-pills{display:flex;gap:var(--space-4);flex-wrap:wrap;align-items:center;font-size:11px;font-family:var(--font-mono);}
+.api-pill{padding:2px 7px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card-2);color:var(--text-dim);}
 .api-pill.connected{border-color:var(--safe);color:var(--safe);}
 .api-pill.disconnected{border-color:var(--malicious);color:var(--malicious);}
 .api-pill.quota{border-color:var(--accent-dim);color:var(--accent);}
-.detail-row td{background:var(--panel-2);white-space:normal;padding:8px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text-dim);}
-.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;}
+
+/* =========================================================================
+   DETAIL ROW
+   ========================================================================= */
+.detail-row td{background:var(--card-2);white-space:normal;padding:8px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text-dim);}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-6,6px);}
 .detail-grid div b{color:var(--text);}
 .retry-link{color:var(--accent);text-decoration:underline;cursor:pointer;font-size:11px;background:none;border:none;padding:0;}
 
-.pagination{text-align:center;padding:8px 0 0;font-size:12px;color:var(--text-dim);}
+/* =========================================================================
+   PAGINATION
+   ========================================================================= */
+.pagination{text-align:center;padding:var(--space-8) 0 0;font-size:12px;color:var(--text-dim);}
 
-/* ---------- readme ---------- */
+/* =========================================================================
+   README
+   ========================================================================= */
 .readme{font-size:12px;line-height:1.6;color:var(--text-dim);}
-.readme h3{color:var(--text);font-size:13px;margin:12px 0 4px;}
-.readme code{background:var(--panel-2);border:1px solid var(--border);padding:1px 5px;border-radius:3px;font-size:11px;color:var(--accent);}
+.readme h3{color:var(--text);font-size:13px;margin:var(--space-12) 0 var(--space-4);}
+.readme code{background:var(--card-2);border:1px solid var(--border);padding:var(--space-2) 5px;border-radius:var(--radius-sm);font-size:11px;color:var(--accent);}
 .readme ul{padding-left:18px;}
 
-
-.footer-note{text-align:center;color:var(--text-faint);font-size:10px;margin-top:16px;}
-@media (max-width:600px){
-  .wrap{padding:10px 12px;}
-  header.topbar{flex-direction:column;align-items:flex-start;gap:8px;}
+/* =========================================================================
+   EMPTY STATES
+   ========================================================================= */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:var(--space-24) var(--space-16);text-align:center;color:var(--text-faint);
 }
+.empty-state .empty-icon{width:48px;height:48px;color:var(--text-faint);opacity:0.4;margin-bottom:var(--space-12);}
+.empty-state h3{font-size:14px;font-weight:600;color:var(--text-dim);margin:0 0 var(--space-4);}
+.empty-state p{font-size:12px;margin:0;max-width:320px;line-height:1.5;}
+
+/* =========================================================================
+   FOOTER
+   ========================================================================= */
+.footer-note{text-align:center;color:var(--text-faint);font-size:10px;margin-top:var(--space-16);}
+
+/* =========================================================================
+   REDUCED MOTION
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:0ms !important;animation-duration:0ms !important;}
+}
+
+/* =========================================================================
+   RESPONSIVE
+   ========================================================================= */
+@media (max-width:600px){
+  .wrap{padding:var(--space-10,10px) var(--space-12);}
+  header.topbar{flex-direction:column;align-items:flex-start;gap:var(--space-8);}
+}
+
+/* =========================================================================
+   UTILITIES
+   ========================================================================= */
 [hidden]{display:none !important;}
 </style>
 </head>
@@ -335,16 +561,16 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
         <span class="api-pill quota" id="vtQuotaPill">VT quota: —</span>
         <span class="api-pill" id="abApiPill">AbuseIPDB: —</span>
       </div>
-      <span id="netStatus" class="icon-btn" style="cursor:default;" aria-live="polite"><span class="pulse-dot" id="pulseDot"></span><span id="netStatusText">Idle</span></span>
-      <button class="icon-btn" id="themeToggle">☾ Theme</button>
+      <span id="netStatus" class="icon-btn" style="cursor:default;" aria-live="polite"><span class="status-dot idle" id="pulseDot"></span><span id="netStatusText">Idle</span></span>
+      <button class="icon-btn" id="themeToggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Theme</button>
     </div>
   </header>
 
   <!-- ============ SETTINGS PANEL ============ -->
   <section class="panel collapsed" id="panelSettings">
     <div class="panel-head" data-target="panelSettings">
-      <h2>⚙ Settings &amp; API Keys</h2>
-      <span class="chev">▾</span>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>Settings &amp; API Keys</h2>
+      <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body">
       <div class="field-row">
@@ -352,7 +578,7 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
           <label for="vtKey">VirusTotal API key</label>
           <div class="key-field">
             <input type="password" id="vtKey" placeholder="Paste your VT v3 API key">
-            <button class="key-visibility" type="button" data-target="vtKey" aria-label="Show VirusTotal API key" aria-pressed="false">👁</button>
+            <button class="key-visibility" type="button" data-target="vtKey" aria-label="Show VirusTotal API key" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
           <div class="hint">Public tier: 4 req/min, 500/day. <a href="https://www.virustotal.com/gui/my-apikey" target="_blank" rel="noopener">Get a key</a></div>
         </div>
@@ -371,7 +597,7 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
           <label for="abKey">AbuseIPDB API key (optional)</label>
           <div class="key-field">
             <input type="password" id="abKey" placeholder="Paste your AbuseIPDB key">
-            <button class="key-visibility" type="button" data-target="abKey" aria-label="Show AbuseIPDB API key" aria-pressed="false">👁</button>
+            <button class="key-visibility" type="button" data-target="abKey" aria-label="Show AbuseIPDB API key" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
           <div class="hint">Free tier: 1,000 checks/day.</div>
         </div>
@@ -381,14 +607,14 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
           <label for="otxKey">AlienVault OTX API key (optional)</label>
           <div class="key-field">
             <input type="password" id="otxKey" placeholder="Paste your OTX key for pulse intelligence">
-            <button class="key-visibility" type="button" data-target="otxKey" aria-label="Show AlienVault OTX API key" aria-pressed="false">👁</button>
+            <button class="key-visibility" type="button" data-target="otxKey" aria-label="Show AlienVault OTX API key" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
         </div>
         <div class="field">
           <label for="threatFoxKey">ThreatFox API key (optional)</label>
           <div class="key-field">
             <input type="password" id="threatFoxKey" placeholder="Paste your abuse.ch ThreatFox key">
-            <button class="key-visibility" type="button" data-target="threatFoxKey" aria-label="Show ThreatFox API key" aria-pressed="false">👁</button>
+            <button class="key-visibility" type="button" data-target="threatFoxKey" aria-label="Show ThreatFox API key" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
         </div>
         <div class="field">
@@ -429,8 +655,8 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <!-- ============ SINGLE LOOKUP ============ -->
   <section class="panel" id="panelSingle">
     <div class="panel-head" data-target="panelSingle">
-      <h2>◎ Quick Lookup</h2>
-      <span class="chev">▾</span>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>Quick Lookup</h2>
+      <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body">
       <div class="field-row">
@@ -452,8 +678,8 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <!-- ============ BULK INPUT ============ -->
   <section class="panel" id="panelBulk">
     <div class="panel-head" data-target="panelBulk">
-      <h2>▤ Bulk Input</h2>
-      <span class="chev">▾</span>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Bulk Input</h2>
+      <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body">
       <div class="field-row">
@@ -503,8 +729,8 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <!-- ============ PROGRESS ============ -->
   <section class="panel" id="panelProgress">
     <div class="panel-head" data-target="panelProgress">
-      <h2>⟳ Progress</h2>
-      <span class="chev">▾</span>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Progress</h2>
+      <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body">
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
@@ -519,8 +745,8 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <!-- ============ SUMMARY ============ -->
   <section class="panel" id="panelSummary">
     <div class="panel-head" data-target="panelSummary">
-      <h2>▦ Summary</h2>
-      <span class="chev">▾</span>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Summary</h2>
+      <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body">
       <div class="cards">
@@ -543,8 +769,8 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <!-- ============ VISUALIZATIONS ============ -->
   <section class="panel" id="panelViz">
     <div class="panel-head" data-target="panelViz">
-      <h2>◆ Visualizations</h2>
-      <span class="chev">▾</span>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Visualizations</h2>
+      <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body">
       <div class="viz-card viz-wide">
@@ -585,8 +811,8 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <!-- ============ RESULTS TABLE ============ -->
   <section class="panel" id="panelTable">
     <div class="panel-head" data-target="panelTable">
-      <h2>▥ Results</h2>
-      <span class="chev">▾</span>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>Results</h2>
+      <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body">
       <div class="table-tools" role="toolbar" aria-label="Results table controls">
@@ -642,7 +868,7 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <!-- ============ ANALYST WORKSPACE ============ -->
   <section class="panel collapsed" id="panelAnalyst">
     <div class="panel-head" data-target="panelAnalyst">
-      <h2>Analyst workspace</h2><span class="chev">▾</span>
+      <h2>Analyst workspace</h2><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body">
       <div class="field-row">
@@ -669,8 +895,8 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   <!-- ============ README ============ -->
   <section class="panel collapsed" id="panelReadme">
     <div class="panel-head" data-target="panelReadme">
-      <h2>? How this works</h2>
-      <span class="chev">▾</span>
+      <h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>How this works</h2>
+      <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
     </div>
     <div class="panel-body readme">
       <h3>Setup</h3>

@@ -100,7 +100,10 @@ function log(msg, cls){
 
 function setNetStatus(text, live){
   $('netStatusText').textContent = text;
-  $('pulseDot').classList.toggle('live', !!live);
+  const dot = $('pulseDot');
+  dot.classList.remove('connected','disconnected','idle','running','pulse');
+  dot.classList.add(live ? 'running' : 'idle');
+  if(live) dot.classList.add('pulse');
 }
 
 let countryDisplayNames = null;
@@ -1178,7 +1181,7 @@ function getVizTheme(){
     suspicious: cs.getPropertyValue('--suspicious').trim() || '#e8c339',
     risky: cs.getPropertyValue('--risky').trim() || '#f0913e',
     malicious: cs.getPropertyValue('--malicious').trim() || '#f0576b',
-    panel: cs.getPropertyValue('--panel-2').trim() || '#141d28',
+    panel: cs.getPropertyValue('--card-2').trim() || '#1e212a',
   };
 }
 
@@ -1316,14 +1319,20 @@ function updateCharts(noDetections, flagged, all){
   const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-soft').trim();
   const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim();
 
+  const cs = getComputedStyle(document.documentElement);
+  const safeColor = cs.getPropertyValue('--safe').trim() || '#4ec9b0';
+  const malColor = cs.getPropertyValue('--malicious').trim() || '#d96060';
+  const susColor = cs.getPropertyValue('--suspicious').trim() || '#d4c97a';
+  const riskColor = cs.getPropertyValue('--risky').trim() || '#d99a4a';
+
   pieChart = upsertChart(pieChart, 'pieChart', {
     type:'doughnut',
-    data:{ labels:['No detections (VT)','Flagged (VT)'], datasets:[{ data:[noDetections, flagged], backgroundColor:['#4ec9b0','#f14c4c'], borderWidth:0 }] },
+    data:{ labels:['No detections (VT)','Flagged (VT)'], datasets:[{ data:[noDetections, flagged], backgroundColor:[safeColor, malColor], borderWidth:0 }] },
     options:{ plugins:{ legend:{ labels:{ color:textColor } }, title:{ display:true, text:'VirusTotal detection status', color:textColor } }, maintainAspectRatio:false }
   });
   barChart = upsertChart(barChart, 'barChart', {
     type:'bar',
-    data:{ labels:['No detections','Low concern','Suspicious','Malicious'], datasets:[{ data:buckets, backgroundColor:['#4ec9b0','#dcdcaa','#cca700','#f14c4c'] }] },
+    data:{ labels:['No detections','Low concern','Suspicious','Malicious'], datasets:[{ data:buckets, backgroundColor:[safeColor, susColor, riskColor, malColor] }] },
     options:{
       plugins:{ legend:{display:false}, title:{ display:true, text:'Risk Distribution', color:textColor } },
       scales:{ x:{ ticks:{color:textColor}, grid:{color:gridColor} }, y:{ ticks:{color:textColor}, grid:{color:gridColor}, beginAtZero:true } },
@@ -1918,11 +1927,11 @@ function buildDetailHtml(r){
       <div style="margin-bottom:6px;"><b>Flagging engines (${vt.flaggedEngines ? vt.flaggedEngines.length : 0}):</b></div>
       <div style="max-height:180px;overflow:auto;border:1px solid var(--border-soft);border-radius:5px;margin-bottom:12px;">
         <table style="width:100%;border-collapse:collapse;font-size:11px;">
-          <thead><tr style="background:var(--panel);"><th style="text-align:left;padding:6px 8px;">Engine</th><th style="text-align:left;padding:6px 8px;">Category</th><th style="text-align:left;padding:6px 8px;">Result</th></tr></thead>
+          <thead><tr style="background:var(--card-2);"><th style="text-align:left;padding:6px 8px;">Engine</th><th style="text-align:left;padding:6px 8px;">Category</th><th style="text-align:left;padding:6px 8px;">Result</th></tr></thead>
           <tbody>${engineRows}</tbody>
         </table>
       </div>
-      <div><b>WHOIS:</b><br><div style="max-height:120px;overflow:auto;white-space:pre-wrap;background:var(--panel);padding:8px;border-radius:5px;border:1px solid var(--border-soft);">${escapeHtml(vt.whois||'—')}</div></div>
+      <div><b>WHOIS:</b><br><div style="max-height:120px;overflow:auto;white-space:pre-wrap;background:var(--card);padding:8px;border-radius:5px;border:1px solid var(--border-soft);">${escapeHtml(vt.whois||'—')}</div></div>
     `;
   } else if(r.vtError){
     vtBlock = `<div class="hint" style="color:var(--malicious);">VirusTotal error: ${escapeHtml(r.vtError)}</div>`;
@@ -3066,7 +3075,9 @@ function setKeyVisibility(button, show){
   input.type = show ? 'text' : 'password';
   button.setAttribute('aria-pressed', show ? 'true' : 'false');
   button.setAttribute('aria-label', `${show ? 'Hide' : 'Show'} ${input.labels && input.labels[0] ? input.labels[0].textContent.replace(/\s+/g, ' ').trim() : 'API key'}`);
-  button.textContent = show ? '🙈' : '👁';
+  button.innerHTML = show
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
 }
 
 function initKeyVisibilityControls(){
@@ -3195,7 +3206,9 @@ document.querySelectorAll('.panel-head').forEach(h=>{
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme', t);
   lsSet(LS_KEYS.theme, t);
-  $('themeToggle').textContent = t === 'dark' ? '☾ Theme' : '☀ Theme';
+  $('themeToggle').innerHTML = t === 'dark'
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Theme'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Theme';
   if(state.results.size) updateSummary();
 }
 $('themeToggle').setAttribute('aria-label', 'Toggle theme');
@@ -3207,7 +3220,9 @@ $('themeToggle').addEventListener('click', ()=>{
 function updateOnlineState(){
   const online = navigator.onLine;
   $('netStatusText').textContent = online ? 'Idle' : 'Offline';
-  $('pulseDot').classList.toggle('live', online);
+  const dot = $('pulseDot');
+  dot.classList.remove('connected','disconnected','idle','running','pulse');
+  dot.classList.add(online ? 'connected' : 'disconnected');
   $('netStatus').setAttribute('aria-label', online ? 'Online status: idle' : 'Offline status');
 }
 
@@ -3234,6 +3249,11 @@ function init(){
   removeLegacyPersistentApiKeys();
   const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
   applyTheme(lsGet(LS_KEYS.theme, prefersLight ? 'light' : 'dark'));
+  if(window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+      if(!lsGet(LS_KEYS.theme)) applyTheme(e.matches ? 'light' : 'dark');
+    });
+  }
   loadSettings();
   initKeyVisibilityControls();
   state.hiddenColumns = new Set(readJson(LS_KEYS.tableColumns, []));
