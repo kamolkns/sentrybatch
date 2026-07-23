@@ -98,6 +98,11 @@ function log(msg, cls){
   while(c.children.length > 300) c.removeChild(c.firstChild);
 }
 
+function setProvider(provider){
+  const el = $('progressProvider');
+  if(provider) el.textContent = `Querying: ${provider}`; else el.textContent = '';
+}
+
 function setNetStatus(text, live){
   $('netStatusText').textContent = text;
   const dot = $('pulseDot');
@@ -907,6 +912,7 @@ async function processSingleIP(ip, domainLabel, onStatus, signal){
   const threatFoxKey = $('threatFoxKey').value.trim();
 
   setStatus('Processing', 'Fetching geolocation…');
+  setProvider('Geolocation');
   const geoPromise = fetchGeolocation(ip, signal);
 
   let vt = null, ab = null, errors = [];
@@ -920,6 +926,7 @@ async function processSingleIP(ip, domainLabel, onStatus, signal){
       return { error: 'VT daily quota exhausted (500/day on public tier)' };
     }
     setStatus('Processing', 'Querying VirusTotal…');
+    setProvider('VirusTotal');
     try{
       const data = await checkVirusTotalIP(ip, vtKey, 0, signal);
       state.vtApiConnected = true;
@@ -937,6 +944,7 @@ async function processSingleIP(ip, domainLabel, onStatus, signal){
   async function runAB(){
     if(!useAB || !abKey) return null;
     setStatus('Processing', 'Querying AbuseIPDB…');
+    setProvider('AbuseIPDB');
     try{
       const data = await checkAbuseIPDB(ip, abKey, signal);
       state.abApiConnected = true;
@@ -1032,6 +1040,7 @@ async function processQueue(ips, domainMap, batchSize){
   state.startTime = Date.now();
   updateProgress(0, total);
 
+  startProgressTimer();
   state.abortController = new AbortController();
   const signal = state.abortController.signal;
 
@@ -1075,11 +1084,13 @@ async function processQueue(ips, domainMap, batchSize){
     }
   }
 
+  stopProgressTimer();
   state.abortController = null;
   state.processing = false;
   $('startBtn').disabled = false;
   $('pauseBtn').disabled = true;
   $('stopBtn').disabled = true;
+  $('progressProvider').textContent = '';
   setNetStatus(state.stopped ? 'Stopped' : 'Idle', false);
   if(!state.stopped){
     log(`Batch completed successfully — ${state.processedCount}/${total} IPs processed.`, '');
@@ -1105,15 +1116,34 @@ function updateProgress(done, total){
   $('progressText').textContent = `${done} / ${total} processed`;
   const elapsed = (Date.now() - (state.startTime||Date.now())) / 1000;
   const speed = elapsed > 0 ? (done/elapsed) : 0;
+  $('progressElapsed').textContent = formatDuration(elapsed);
+  $('progressSpeed').textContent = speed.toFixed(2) + '/s';
   $('sSpeed').textContent = speed.toFixed(2) + '/s';
   if(speed > 0 && done < total){
     const remaining = (total-done)/speed;
     $('progressEta').textContent = `Est. ${formatDuration(remaining)} remaining`;
+    $('progressRemaining').textContent = formatDuration(remaining);
   } else if(done >= total && total>0){
     $('progressEta').textContent = 'Complete';
+    $('progressRemaining').textContent = '—';
   } else {
     $('progressEta').textContent = '—';
+    $('progressRemaining').textContent = '—';
   }
+}
+
+let progressTimer = null;
+function startProgressTimer(){
+  stopProgressTimer();
+  progressTimer = setInterval(() => {
+    if(state.processing && state.startTime){
+      const elapsed = (Date.now() - state.startTime) / 1000;
+      $('progressElapsed').textContent = formatDuration(elapsed);
+    }
+  }, 1000);
+}
+function stopProgressTimer(){
+  if(progressTimer){ clearInterval(progressTimer); progressTimer = null; }
 }
 function formatDuration(sec){
   sec = Math.round(sec);
@@ -1192,7 +1222,21 @@ function clearVizFeedback(){
   if(heatHint) heatHint.textContent = 'Hover a cell for counts.';
 }
 
+function updateEmptyStates(){
+  const hasData = state.results.size > 0;
+  const hasVizResults = hasData && [...state.results.values()].some(r => r.status === 'Done' || r.status === 'Partial');
+  const isTableEmpty = !hasData;
+  document.querySelectorAll('.viz-card .empty-state').forEach(el => el.hidden = hasVizResults);
+  const tbl = $('emptyTable');
+  if(tbl) tbl.hidden = !isTableEmpty;
+  const canvases = document.querySelectorAll('.viz-card canvas, #worldMap, #riskHeatmap');
+  canvases.forEach(el => el.hidden = !hasVizResults);
+  const tableWrap = document.querySelector('.table-scroll');
+  if(tableWrap) tableWrap.hidden = isTableEmpty;
+}
+
 function clearVisualizations(){
+  updateEmptyStates();
   pieChart = destroyChart(pieChart);
   barChart = destroyChart(barChart);
   asnChart = destroyChart(asnChart);
@@ -1294,6 +1338,7 @@ function updateSummary(){
   $('sLow').textContent = lowest ? lowest.score : '—';
   $('sLowIp').textContent = lowest ? lowest.ip : '';
 
+  updateEmptyStates();
   if(!all.length){
     clearVisualizations();
     return;
@@ -1900,7 +1945,41 @@ function buildDetailHtml(r){
   }
   const errs = (r.errors && r.errors.length) ? r.errors.map(escapeHtml).join('<br>') : 'None';
 
-  let vtBlock = '<div class="hint">No VirusTotal data.</div>';
+  const section = (title, content) => `
+    <div class="detail-section">
+      <div class="detail-section-title">${title}</div>
+      <div class="detail-section-body">${content}</div>
+    </div>`;
+
+  /* Network section */
+  let networkBlock = `<div class="detail-grid">
+    <div><b>IP:</b> ${escapeHtml(r.ip)}</div>
+    <div><b>ISP / AS owner:</b> ${escapeHtml(r.isp||'—')}</div>` +
+    (r.asOwner ? `<div><b>ASN:</b> ${escapeHtml(r.asOwner)}${r.vtFull && r.vtFull.asn ? ` (AS${escapeHtml(r.vtFull.asn)})` : ''}</div>` : '') +
+    (r.vtFull && r.vtFull.network ? `<div><b>Network (CIDR):</b> ${escapeHtml(r.vtFull.network)}</div>` : '') +
+    (r.vtFull && r.vtFull.regionalInternetRegistry ? `<div><b>Regional registry:</b> ${escapeHtml(r.vtFull.regionalInternetRegistry)}</div>` : '') +
+    (r.vtFull && r.vtFull.certIssuer ? `<div><b>TLS cert issuer:</b> ${escapeHtml(r.vtFull.certIssuer)}</div>` : '') +
+    (r.vtFull && r.vtFull.jarm ? `<div><b>JARM fingerprint:</b> ${escapeHtml(r.vtFull.jarm)}</div>` : '') +
+  `</div>`;
+
+  /* Geolocation section */
+  let geoBlock = `<div class="detail-grid">
+    <div><b>Country:</b> ${escapeHtml(r.country||'—')}${r.countryCode ? ` <span style="color:var(--text-faint);">(${escapeHtml(r.countryCode)})</span>` : ''}</div>
+    <div><b>Region / City:</b> ${escapeHtml(r.region||'—')} / ${escapeHtml(r.city||'—')}</div>` +
+    (r.coords ? `<div><b>Coordinates:</b> ${escapeHtml(r.coords)}</div>` : '') +
+  `</div>`;
+
+  /* Detection Summary */
+  let detBlock = `<div class="detail-grid">
+    <div><b>Threat score:</b> <span style="color:${scoreColor(r.score)};font-weight:700;">${r.score != null ? r.score : '—'}</span> / 100</div>
+    <div><b>Risk level:</b> <span class="badge ${r.riskCls||'pending'}">${escapeHtml(r.riskLabel||'—')}</span></div>
+    <div><b>Sources:</b> ${escapeHtml(r.sources||'—')}</div>` +
+    (r.vtVerdict ? `<div><b>VT verdict:</b> ${escapeHtml(r.vtVerdict)}</div>` : '') +
+    (r.lastReported ? `<div><b>Last reported:</b> ${escapeHtml(new Date(r.lastReported).toLocaleString())}</div>` : '') +
+  `</div>`;
+
+  /* Threat Intelligence */
+  let vtBlock = '<div class="hint">No VirusTotal data available.</div>';
   if(r.vtFull && r.vtFull.stats){
     const vt = r.vtFull;
     const s = vt.stats;
@@ -1910,69 +1989,66 @@ function buildDetailHtml(r){
       : '<tr><td colspan="3">No engines flagged this IP.</td></tr>';
 
     vtBlock = `
-      <h4 style="color:var(--text);margin:0 0 8px;font-size:12px;">VirusTotal — full breakdown</h4>
-      <div class="detail-grid" style="margin-bottom:12px;">
+      <div class="detail-grid" style="margin-bottom:10px;">
         <div><b>Detection stats:</b> ${s.malicious} malicious · ${s.suspicious} suspicious · ${s.harmless} harmless · ${s.undetected} undetected${s.timeout?` · ${s.timeout} timeout`:''} (${vt.engineCount||s.malicious+s.suspicious+s.harmless+s.undetected} engines)</div>
         <div><b>Community reputation:</b> ${vt.reputation} <span style="color:var(--text-faint);">(harmless votes: ${vt.votes.harmless}, malicious votes: ${vt.votes.malicious})</span></div>
-        <div><b>Country (VT):</b> ${escapeHtml(vt.country ? (vt.country + ' — ' + countryCodeToName(vt.country)) : '—')} / <b>Continent:</b> ${escapeHtml(vt.continent||'—')}</div>
-        <div><b>ASN / Owner:</b> AS${escapeHtml(vt.asn||'—')} — ${escapeHtml(vt.asOwner||'—')}</div>
-        <div><b>Network (CIDR):</b> ${escapeHtml(vt.network||'—')}</div>
-        <div><b>Regional registry:</b> ${escapeHtml(vt.regionalInternetRegistry||'—')}</div>
-        <div><b>Last analysis:</b> ${vt.lastAnalysisDate ? new Date(vt.lastAnalysisDate).toLocaleString() : '—'}</div>
-        <div><b>Last modified:</b> ${vt.lastModificationDate ? new Date(vt.lastModificationDate).toLocaleString() : '—'}</div>
-        <div><b>TLS cert issuer:</b> ${escapeHtml(vt.certIssuer||'—')}</div>
-        <div><b>JARM fingerprint:</b> ${escapeHtml(vt.jarm||'—')}</div>
+        <div><b>Tags:</b> ${tagsHtml}</div>
       </div>
-      <div style="margin-bottom:10px;"><b>Tags:</b> ${tagsHtml}</div>
       <div style="margin-bottom:6px;"><b>Flagging engines (${vt.flaggedEngines ? vt.flaggedEngines.length : 0}):</b></div>
-      <div style="max-height:180px;overflow:auto;border:1px solid var(--border-soft);border-radius:5px;margin-bottom:12px;">
+      <div style="max-height:160px;overflow:auto;border:1px solid var(--border-soft);border-radius:var(--radius-sm);margin-bottom:10px;">
         <table style="width:100%;border-collapse:collapse;font-size:11px;">
-          <thead><tr style="background:var(--card-2);"><th style="text-align:left;padding:6px 8px;">Engine</th><th style="text-align:left;padding:6px 8px;">Category</th><th style="text-align:left;padding:6px 8px;">Result</th></tr></thead>
+          <thead><tr style="background:var(--card-2);"><th style="text-align:left;padding:5px 8px;">Engine</th><th style="text-align:left;padding:5px 8px;">Category</th><th style="text-align:left;padding:5px 8px;">Result</th></tr></thead>
           <tbody>${engineRows}</tbody>
         </table>
-      </div>
-      <div><b>WHOIS:</b><br><div style="max-height:120px;overflow:auto;white-space:pre-wrap;background:var(--card);padding:8px;border-radius:5px;border:1px solid var(--border-soft);">${escapeHtml(vt.whois||'—')}</div></div>
-    `;
+      </div>`;
+    if(vt.whois){
+      vtBlock += `<div style="margin-bottom:10px;"><b>WHOIS:</b><br><div style="margin-top:4px;max-height:100px;overflow:auto;white-space:pre-wrap;background:var(--card);padding:6px 8px;border-radius:var(--radius-sm);border:1px solid var(--border-soft);font-size:10px;line-height:1.4;">${escapeHtml(vt.whois)}</div></div>`;
+    }
   } else if(r.vtError){
     vtBlock = `<div class="hint" style="color:var(--malicious);">VirusTotal error: ${escapeHtml(r.vtError)}</div>`;
   }
 
-  let abBlock = '<div class="hint">No AbuseIPDB data.</div>';
+  let abBlock = '';
   if(r.abFull){
     const ab = r.abFull;
-    abBlock = `
-      <h4 style="color:var(--text);margin:14px 0 8px;font-size:12px;">AbuseIPDB</h4>
-      <div class="detail-grid">
-        <div><b>Confidence score:</b> ${ab.confidenceScore}%</div>
-        <div><b>Total reports:</b> ${ab.totalReports}</div>
-        <div><b>Last reported:</b> ${ab.lastReportedAt ? new Date(ab.lastReportedAt).toLocaleString() : '—'}</div>
-        <div><b>Usage type:</b> ${escapeHtml(ab.usageType||'—')}</div>
-        <div><b>Domain:</b> ${escapeHtml(ab.domain||'—')}</div>
-        <div><b>Tor exit node:</b> ${ab.isTor ? 'Yes' : 'No'}</div>
-        <div><b>Whitelisted:</b> ${ab.isWhitelisted ? 'Yes' : 'No'}</div>
-      </div>`;
+    abBlock = `<div class="detail-grid" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);">
+      <div><b>AbuseIPDB confidence:</b> ${ab.confidenceScore}%</div>
+      <div><b>Total reports:</b> ${ab.totalReports}</div>
+      <div><b>Last reported:</b> ${ab.lastReportedAt ? new Date(ab.lastReportedAt).toLocaleString() : '—'}</div>
+      <div><b>Usage type:</b> ${escapeHtml(ab.usageType||'—')}</div>
+      <div><b>Domain:</b> ${escapeHtml(ab.domain||'—')}</div>
+      <div><b>Tor exit node:</b> ${ab.isTor ? 'Yes' : 'No'}</div>
+      <div><b>Whitelisted:</b> ${ab.isWhitelisted ? 'Yes' : 'No'}</div>
+    </div>`;
   } else if(r.abError){
-    abBlock = `<div class="hint" style="color:var(--malicious);">AbuseIPDB error: ${escapeHtml(r.abError)}</div>`;
+    abBlock = `<div class="hint" style="color:var(--malicious);margin-top:8px;">AbuseIPDB error: ${escapeHtml(r.abError)}</div>`;
   }
 
   const intelligenceRows = (r.intelligence || []).map(item=>{
     if(!item.success) return `<div><b>${escapeHtml(item.source)}:</b> <span style="color:var(--text-faint);">${escapeHtml(item.error || 'Unavailable')}</span></div>`;
     return `<div><b>${escapeHtml(item.source)}:</b> ${escapeHtml(JSON.stringify(item.data))}</div>`;
   }).join('');
-  const intelligenceBlock = intelligenceRows
-    ? `<h4 style="color:var(--text);margin:14px 0 8px;font-size:12px;">Tier 1 intelligence</h4><div class="detail-grid">${intelligenceRows}</div>`
-    : '';
+  let intelBlock = abBlock;
+  if(intelligenceRows){
+    intelBlock += `<div class="detail-grid" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);">${intelligenceRows}</div>`;
+  }
+
+  /* Metadata section */
+  let metaBlock = '';
+  const metaItems = [];
+  if(r.domain) metaItems.push(`<div><b>Domain:</b> ${escapeHtml(r.domain)}</div>`);
+  if(r.vtFull && r.vtFull.lastAnalysisDate) metaItems.push(`<div><b>Last VT analysis:</b> ${new Date(r.vtFull.lastAnalysisDate).toLocaleString()}</div>`);
+  if(r.vtFull && r.vtFull.lastModificationDate) metaItems.push(`<div><b>Last modified:</b> ${new Date(r.vtFull.lastModificationDate).toLocaleString()}</div>`);
+  if(r.status) metaItems.push(`<div><b>Status:</b> ${escapeHtml(r.status)}${r.statusDetail ? ` — ${escapeHtml(r.statusDetail)}` : ''}</div>`);
+  if(metaItems.length) metaBlock = `<div class="detail-grid">${metaItems.join('')}</div>`;
 
   return `
-    <div class="detail-grid" style="margin-bottom:12px;">
-      <div><b>Country:</b> ${escapeHtml(r.country||'—')}${r.countryCode ? ` <span style="color:var(--text-faint);">(${escapeHtml(r.countryCode)})</span>` : ''}</div>
-      <div><b>Region / City:</b> ${escapeHtml(r.region||'—')} / ${escapeHtml(r.city||'—')}</div>
-      <div><b>ISP / AS owner:</b> ${escapeHtml(r.isp||'—')}</div>
-    </div>
-    ${vtBlock}
-    ${abBlock}
-    ${intelligenceBlock}
-    <div style="margin-top:14px;"><b>Errors / warnings:</b><br>${errs}</div>
+    ${section('Network', networkBlock)}
+    ${section('Geolocation', geoBlock)}
+    ${section('Detection Summary', detBlock)}
+    ${section('Threat Intelligence', vtBlock + intelBlock)}
+    ${metaBlock ? section('Metadata', metaBlock) : ''}
+    ${errs !== 'None' ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-soft);"><b style="color:var(--malicious);font-size:11px;">Errors / warnings:</b><div style="margin-top:4px;font-size:11px;color:var(--text-dim);">${errs}</div></div>` : ''}
     <div style="margin-top:10px;">${retry}</div>
   `;
 }
@@ -2799,6 +2875,28 @@ $('exportPdfBtn').addEventListener('click', ()=> exportCurrentReport('pdf'));
 $('exportStixBtn').addEventListener('click', ()=> exportCurrentReport('stix'));
 $('exportOpenIocBtn').addEventListener('click', ()=> exportCurrentReport('openioc'));
 
+/* Export dropdown */
+$('exportDropdownBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  const menu = $('exportDropdown');
+  const open = menu.classList.toggle('open');
+  $('exportDropdownBtn').setAttribute('aria-expanded', String(open));
+});
+document.addEventListener('click', e => {
+  const menu = $('exportDropdown');
+  if(!menu.classList.contains('open')) return;
+  if(!e.target.closest('.dropdown')){
+    menu.classList.remove('open');
+    $('exportDropdownBtn').setAttribute('aria-expanded', 'false');
+  }
+});
+document.querySelectorAll('#exportDropdown .dropdown-item').forEach(item => {
+  item.addEventListener('click', ()=>{
+    $('exportDropdown').classList.remove('open');
+    $('exportDropdownBtn').setAttribute('aria-expanded', 'false');
+  });
+});
+
 function flashMsg(btnId, msg){
   const btn = $(btnId);
   const original = btn.textContent;
@@ -3279,6 +3377,7 @@ function init(){
   });
   renderTable();
   updateSummary();
+  updateEmptyStates();
   log('Sentry Batch initialized. Configure API keys in Settings for threat scoring.', '');
 }
 init();

@@ -325,6 +325,10 @@ textarea#ipInput{width:100%;min-height:95px;background:var(--card-2);border:1px 
 .progress-track{width:100%;height:4px;background:var(--card-2);border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border);}
 .progress-fill{height:100%;background:var(--accent);width:0%;transition:width 300ms ease;}
 .progress-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:var(--space-4);font-family:var(--font-mono);}
+.progress-stats{display:flex;gap:var(--space-12);font-size:11px;color:var(--text-dim);margin-top:var(--space-4);}
+.progress-stats span{display:inline-flex;align-items:center;gap:var(--space-4);}
+.progress-stats .stat-value{font-family:var(--font-mono);color:var(--text);font-weight:500;}
+.progress-provider{font-size:11px;color:var(--text-faint);margin-top:var(--space-4);min-height:16px;}
 
 /* =========================================================================
    LOG CONSOLE
@@ -341,22 +345,24 @@ textarea#ipInput{width:100%;min-height:95px;background:var(--card-2);border:1px 
 .log-console .l-dim{color:var(--text-faint);}
 
 /* =========================================================================
-   SUMMARY CARDS
+   SUMMARY CARDS — Metric Card Pattern
    ========================================================================= */
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--space-8);}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:var(--space-8);}
 .card{
-  background:var(--card-2);border-radius:var(--radius);padding:var(--space-8) var(--space-12);
-}
-.card .k{
-  font-size:10px;text-transform:uppercase;letter-spacing:0.5px;
-  color:var(--text-faint);font-weight:600;
+  background:var(--card-2);border-radius:var(--radius);padding:var(--space-12) var(--space-12);
+  display:flex;flex-direction:column;gap:var(--space-4);
 }
 .card .v{
-  font-size:18px;font-family:var(--font-mono);font-weight:600;
-  margin-top:var(--space-2);color:var(--text);
+  font-size:24px;font-family:var(--font-mono);font-weight:700;line-height:1.1;
+  color:var(--text);letter-spacing:-0.5px;
 }
 .card .v.mal{color:var(--malicious);}
-.card .sub2{font-size:10px;color:var(--text-dim);margin-top:var(--space-2);font-family:var(--font-mono);}
+.card .v.safe{color:var(--safe);}
+.card .k{
+  font-size:10px;text-transform:uppercase;letter-spacing:0.5px;
+  color:var(--text-faint);font-weight:600;line-height:1.3;
+}
+.card .sub2{font-size:10px;color:var(--text-dim);line-height:1.3;font-family:var(--font-mono);}
 
 /* =========================================================================
    CHARTS
@@ -400,6 +406,12 @@ textarea#ipInput{width:100%;min-height:95px;background:var(--card-2);border:1px 
   padding:var(--space-4);display:none;flex-direction:column;gap:2px;
 }
 .dropdown-menu.open{display:flex;}
+.dropdown-group-label{
+  font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-faint);
+  padding:var(--space-4) var(--space-8) var(--space-2);font-weight:600;pointer-events:none;
+  border-top:1px solid var(--border-soft);margin-top:var(--space-2);
+}
+.dropdown-group-label:first-child{border-top:none;margin-top:0;}
 .dropdown-item{
   display:flex;align-items:center;gap:var(--space-6,6px);padding:6px 10px;
   border:none;background:transparent;color:var(--text);font-size:12px;
@@ -437,9 +449,11 @@ table.results thead th{
 }
 table.results thead th:hover{color:var(--text);}
 table.results thead th .arrow{color:var(--accent);margin-left:var(--space-4);font-size:8px;}
-table.results tbody td{padding:6px 10px;border-bottom:1px solid var(--border-soft);white-space:nowrap;color:var(--text);vertical-align:middle;}
-table.results tbody td:nth-child(9){text-align:right;}
-table.results tbody td:first-child{padding-left:var(--space-12);border-left:2px solid transparent;}
+table.results tbody td{padding:8px 10px;border-bottom:1px solid var(--border-soft);white-space:nowrap;color:var(--text);vertical-align:middle;}
+table.results tbody td:nth-child(9){text-align:right;font-variant-numeric:tabular-nums;}
+table.results tbody td:nth-child(11){text-align:right;}
+table.results tbody td:nth-child(12) .badge{margin:0;}
+table.results tbody td:first-child{padding-left:var(--space-12);border-left:2px solid transparent;font-family:var(--font-mono);}
 table.results tbody tr.row-expand:has(+ tr.detail-row) td:first-child{border-left-color:var(--accent);}
 table.results tbody tr:nth-child(even){background:rgba(255,255,255,0.015);}
 table.results tbody tr:hover{background:var(--card-2);}
@@ -449,7 +463,7 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
 /* =========================================================================
    BADGES
    ========================================================================= */
-.badge{padding:2px 7px;border-radius:var(--radius-sm);font-size:10px;font-weight:600;display:inline-block;vertical-align:middle;}
+.badge{padding:2px 7px;border-radius:var(--radius-sm);font-size:10px;font-weight:600;display:inline-block;vertical-align:middle;line-height:1.3;}
 .badge.suspicious{background:var(--suspicious-bg);color:var(--suspicious);}
 .badge.malicious{background:var(--malicious-bg);color:var(--malicious);}
 .badge.pending{background:transparent;color:var(--text-faint);border:1px solid var(--border);}
@@ -471,17 +485,18 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
 .row-actions button{
   padding:1px 6px;font-size:10px;border-radius:var(--radius-sm);background:var(--card);
   border:1px solid var(--border);color:var(--text-dim);white-space:nowrap;height:auto;gap:3px;
+  cursor:pointer;font-family:var(--font-ui);
   transition:border-color var(--transition), color var(--transition);
 }
 .row-actions button:hover{border-color:var(--accent);color:var(--text);}
 .row-actions button.danger:hover{border-color:var(--malicious);color:var(--malicious);}
-.status-detail{font-size:10px;color:var(--text-faint);display:block;margin-top:1px;max-width:130px;white-space:normal;line-height:1.25;}
+.status-detail{font-size:9px;color:var(--text-faint);display:block;margin-top:2px;max-width:130px;white-space:normal;line-height:1.3;}
 
 /* =========================================================================
    API PILLS
    ========================================================================= */
 .api-pills{display:flex;gap:var(--space-4);flex-wrap:wrap;align-items:center;font-size:11px;font-family:var(--font-mono);}
-.api-pill{padding:2px 7px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card-2);color:var(--text-dim);}
+.api-pill{padding:2px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--card-2);color:var(--text-dim);height:22px;display:inline-flex;align-items:center;}
 .api-pill.connected{border-color:var(--safe);color:var(--safe);}
 .api-pill.disconnected{border-color:var(--malicious);color:var(--malicious);}
 .api-pill.quota{border-color:var(--accent-dim);color:var(--accent);}
@@ -489,15 +504,23 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
 /* =========================================================================
    DETAIL ROW
    ========================================================================= */
-.detail-row td{background:var(--card-2);white-space:normal;padding:8px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text-dim);}
+.detail-row td{background:var(--card-2);white-space:normal;padding:12px 14px;font-family:var(--font-ui);font-size:12px;color:var(--text-dim);}
+.detail-section{margin-bottom:12px;}
+.detail-section:last-child{margin-bottom:0;}
+.detail-section-title{
+  font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-faint);
+  font-weight:600;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border-soft);
+}
+.detail-section-body{font-family:var(--font-mono);font-size:11px;}
 .detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--space-6,6px);}
-.detail-grid div b{color:var(--text);}
+.detail-grid div{line-height:1.5;}
+.detail-grid div b{color:var(--text);font-family:var(--font-ui);font-weight:600;}
 .retry-link{color:var(--accent);text-decoration:underline;cursor:pointer;font-size:11px;background:none;border:none;padding:0;}
 
 /* =========================================================================
    PAGINATION
    ========================================================================= */
-.pagination{text-align:center;padding:var(--space-8) 0 0;font-size:12px;color:var(--text-dim);}
+.pagination{text-align:center;padding:var(--space-10,10px) 0 0;font-size:12px;color:var(--text-dim);font-family:var(--font-mono);}
 
 /* =========================================================================
    README
@@ -515,8 +538,12 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
   padding:var(--space-24) var(--space-16);text-align:center;color:var(--text-faint);
 }
 .empty-state .empty-icon{width:48px;height:48px;color:var(--text-faint);opacity:0.4;margin-bottom:var(--space-12);}
-.empty-state h3{font-size:14px;font-weight:600;color:var(--text-dim);margin:0 0 var(--space-4);}
-.empty-state p{font-size:12px;margin:0;max-width:320px;line-height:1.5;}
+.empty-state h3{font-size:13px;font-weight:600;color:var(--text-dim);margin:0 0 var(--space-4);}
+.empty-state p{font-size:11px;margin:0;max-width:300px;line-height:1.45;color:var(--text-faint);}
+.viz-card .empty-state{padding:var(--space-16) var(--space-12);min-height:180px;}
+.viz-card .empty-state .empty-icon{width:36px;height:36px;margin-bottom:var(--space-8);}
+.viz-card .empty-state h3{font-size:12px;}
+#panelTable .empty-state{padding:var(--space-32) var(--space-16);}
 
 /* =========================================================================
    FOOTER
@@ -738,6 +765,12 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
         <span id="progressText">0 / 0 processed</span>
         <span id="progressEta">—</span>
       </div>
+      <div class="progress-stats">
+        <span>Elapsed: <span class="stat-value" id="progressElapsed">0s</span></span>
+        <span>Remaining: <span class="stat-value" id="progressRemaining">—</span></span>
+        <span>Speed: <span class="stat-value" id="progressSpeed">0/s</span></span>
+      </div>
+      <div class="progress-provider" id="progressProvider"></div>
       <div class="log-console" id="logConsole" aria-live="polite"></div>
     </div>
   </section>
@@ -750,14 +783,14 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
     </div>
     <div class="panel-body">
       <div class="cards">
-        <div class="card"><div class="k">Total checked</div><div class="v" id="sTotal">0</div></div>
-        <div class="card"><div class="k">No detections reported (VT)</div><div class="v" id="sClean">0</div></div>
-        <div class="card"><div class="k">Flagged (VT)</div><div class="v mal" id="sFlagged">0</div></div>
-        <div class="card"><div class="k">Average threat score</div><div class="v" id="sAvg">0</div></div>
-        <div class="card"><div class="k">Highest risk</div><div class="v mal" id="sHigh">—</div><div class="sub2" id="sHighIp"></div></div>
-        <div class="card"><div class="k">Lowest score</div><div class="v" id="sLow">—</div><div class="sub2" id="sLowIp"></div></div>
-        <div class="card"><div class="k">Processing speed</div><div class="v" id="sSpeed">0/s</div></div>
-        <div class="card"><div class="k">VT quota today</div><div class="v" id="sVtUsage">0</div><div class="sub2" id="sVtRemaining">500 left</div></div>
+        <div class="card"><div class="v" id="sTotal">0</div><div class="k">Total checked</div></div>
+        <div class="card"><div class="v" id="sClean">0</div><div class="k">No detections reported (VT)</div></div>
+        <div class="card"><div class="v mal" id="sFlagged">0</div><div class="k">Flagged by VT</div></div>
+        <div class="card"><div class="v" id="sAvg">0</div><div class="k">Average threat score</div></div>
+        <div class="card"><div class="v mal" id="sHigh">—</div><div class="k">Highest risk</div><div class="sub2" id="sHighIp"></div></div>
+        <div class="card"><div class="v" id="sLow">—</div><div class="k">Lowest score</div><div class="sub2" id="sLowIp"></div></div>
+        <div class="card"><div class="v" id="sSpeed">0/s</div><div class="k">Processing speed</div></div>
+        <div class="card"><div class="v" id="sVtUsage">0</div><div class="k">VT quota today</div><div class="sub2" id="sVtRemaining">500 left</div></div>
       </div>
       <div class="chart-row">
         <div class="chart-box"><canvas id="pieChart"></canvas></div>
@@ -776,33 +809,68 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
       <div class="viz-card viz-wide">
         <h3>World map</h3>
         <svg id="worldMap" class="viz-map" role="img" aria-label="World map of checked IP locations"></svg>
+        <div class="empty-state" id="emptyWorld" data-for="worldMap">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><path d="M2 12h20"/></svg>
+          <h3>No locations mapped yet</h3>
+          <p>Geolocation coordinates will appear here after analysis begins.</p>
+        </div>
         <div class="subtle" id="worldMapHint">Points reflect available geolocation coordinates.</div>
       </div>
       <div class="viz-grid">
         <div class="viz-card">
           <h3>ASN distribution</h3>
           <canvas id="asnChart"></canvas>
+          <div class="empty-state" id="emptyAsn" data-for="asnChart">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            <h3>No ASN data yet</h3>
+            <p>Autonomous system distribution will populate as results are processed.</p>
+          </div>
         </div>
         <div class="viz-card">
           <h3>Timeline</h3>
           <canvas id="timelineChart"></canvas>
+          <div class="empty-state" id="emptyTimeline" data-for="timelineChart">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <h3>No timeline data</h3>
+            <p>Processing sequence and score progression will display here.</p>
+          </div>
         </div>
         <div class="viz-card">
           <h3>Risk heatmap</h3>
           <svg id="riskHeatmap" class="viz-heatmap" role="img" aria-label="Risk heatmap by country and risk level"></svg>
+          <div class="empty-state" id="emptyHeatmap" data-for="riskHeatmap">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M2 8h20M8 2v20"/></svg>
+            <h3>Heatmap unavailable</h3>
+            <p>Country-by-risk-level matrix will render once results exist.</p>
+          </div>
           <div class="subtle" id="riskHeatmapHint">Hover a cell for counts.</div>
         </div>
         <div class="viz-card">
           <h3>Detection trends</h3>
           <canvas id="trendChart"></canvas>
+          <div class="empty-state" id="emptyTrends" data-for="trendChart">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            <h3>No trend data</h3>
+            <p>Rolling score averages and flagged rates will appear here.</p>
+          </div>
         </div>
         <div class="viz-card">
           <h3>Country statistics</h3>
           <canvas id="countryChart"></canvas>
+          <div class="empty-state" id="emptyCountry" data-for="countryChart">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="10" width="4" height="10" rx="1"/><rect x="10" y="4" width="4" height="16" rx="1"/><rect x="18" y="7" width="4" height="13" rx="1"/></svg>
+            <h3>No country data</h3>
+            <p>Country distribution from geolocation will populate with results.</p>
+          </div>
         </div>
         <div class="viz-card">
           <h3>Provider comparison</h3>
           <canvas id="providerChart"></canvas>
+          <div class="empty-state" id="emptyProvider" data-for="providerChart">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="2" r="2"/><circle cx="6" cy="11" r="2"/></svg>
+            <h3>No provider data</h3>
+            <p>Threat intelligence source distribution will render here.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -826,15 +894,28 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
         <div class="right">
           <button class="btn danger" id="clearResultsBtn">Clear results</button>
           <button class="btn" id="copyTableBtn">Copy all (TSV)</button>
-          <button class="btn" id="exportCsvBtn">Export Excel (CSV)</button>
-          <button class="btn" id="exportSummaryBtn">Executive summary</button>
-          <button class="btn" id="exportJsonBtn">Export JSON</button>
-          <button class="btn" id="exportMarkdownBtn">Markdown</button>
-          <button class="btn" id="exportHtmlBtn">HTML report</button>
-          <button class="btn" id="exportPdfBtn">PDF report</button>
-          <button class="btn" id="exportStixBtn">STIX 2.1</button>
-          <button class="btn" id="exportOpenIocBtn">OpenIOC</button>
+          <div class="dropdown">
+            <button class="btn" id="exportDropdownBtn" aria-haspopup="true" aria-expanded="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
+            <div class="dropdown-menu" id="exportDropdown">
+              <div class="dropdown-group-label">Spreadsheet</div>
+              <button class="dropdown-item" id="exportCsvBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Excel (CSV)</button>
+              <button class="dropdown-item" id="exportMarkdownBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Markdown</button>
+              <div class="dropdown-group-label">Documents</div>
+              <button class="dropdown-item" id="exportPdfBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> PDF report</button>
+              <button class="dropdown-item" id="exportHtmlBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> HTML report</button>
+              <button class="dropdown-item" id="exportSummaryBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Executive summary</button>
+              <div class="dropdown-group-label">Threat Intelligence</div>
+              <button class="dropdown-item" id="exportJsonBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> JSON</button>
+              <button class="dropdown-item" id="exportStixBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> STIX 2.1</button>
+              <button class="dropdown-item" id="exportOpenIocBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> OpenIOC</button>
+            </div>
+          </div>
         </div>
+      </div>
+      <div class="empty-state" id="emptyTable" data-for="resultsTable">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/><line x1="15" y1="21" x2="15" y2="9"/></svg>
+        <h3>No results yet</h3>
+        <p>Paste IP addresses or domains above and start a check to populate the table.</p>
       </div>
       <div class="table-scroll">
         <table class="results" id="resultsTable">
