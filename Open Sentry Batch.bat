@@ -1,390 +1,357 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal EnableDelayedExpansion
 
 title Sentry Batch Launcher
 
-:: Always run from the script's own directory
+rem =============================================================================
+rem  Sentry Batch Launcher (Windows)
+rem  https://github.com/kamolkns/sentrybatch
+rem
+rem  Serves the SPA over HTTP (required for ES modules + Service Worker) and
+rem  opens it in the default browser. Every failure path prints a reason and
+rem  pauses instead of silently closing the window.
+rem =============================================================================
+
 cd /d "%~dp0"
 
-:: ===========================================================================
-:: COLOR SUPPORT (Windows 10+ VT escape sequences)
-:: ===========================================================================
-for /f "tokens=2 delims=." %%a in ('ver') do set "VER_FULL=%%a"
-for /f "tokens=1 delims=." %%a in ("%VER_FULL%") do set "VER_MAJOR=%%a"
-set "USE_COLOR=0"
-if !VER_MAJOR! geq 10 (
-    set "USE_COLOR=1"
-)
-if "!USE_COLOR!"=="1" (
-    set "C_RESET=[0m"
-    set "C_BOLD=[1m"
-    set "C_GREEN=[32m"
-    set "C_YELLOW=[33m"
-    set "C_RED=[31m"
-    set "C_CYAN=[36m"
-    set "C_DIM=[2m"
-) else (
-    set "C_RESET="
-    set "C_BOLD="
-    set "C_GREEN="
-    set "C_YELLOW="
-    set "C_RED="
-    set "C_CYAN="
-    set "C_DIM="
-)
-
-:: ===========================================================================
-:: LOGGING HELPERS
-:: ===========================================================================
-set "LOG_HEADER=[Sentry Batch]"
-
-echo.%C_BOLD%%LOG_HEADER% Windows Launcher%C_RESET%
-echo.
-
-:: ===========================================================================
-:: PARSE ARGUMENTS
-:: ===========================================================================
 set "PORT=8080"
+set "MAX_PORT_TRIES=10"
+set "NO_BROWSER=0"
 set "LOG_FILE="
+set "TEMP_LOG=%TEMP%\sentrybatch_%RANDOM%.log"
 
+rem -----------------------------------------------------------------------------
+rem Parse arguments
+rem -----------------------------------------------------------------------------
 :parse_args
-if not "%1"=="" (
-    if "%1"=="--port" (
-        set "PORT=%~2"
-        shift
-        shift
-        goto parse_args
-    )
-    if "%1"=="--log" (
-        set "LOG_FILE=%~2"
-        shift
-        shift
-        goto parse_args
-    )
-    if "%1"=="--help" (
-        echo.Usage: %~nx0 [--port PORT] [--log FILE]
-        echo.  --port PORT   HTTP server port (default: 8080^)
-        echo.  --log FILE    Write output to log file
-        exit /b 0
-    )
-    echo.Unknown argument: %1
-    exit /b 1
+if "%~1"=="" goto args_done
+if /i "%~1"=="--port" (
+    set "PORT=%~2"
+    shift & shift
+    goto parse_args
 )
+if /i "%~1"=="--log" (
+    set "LOG_FILE=%~2"
+    shift & shift
+    goto parse_args
+)
+if /i "%~1"=="--no-browser" (
+    set "NO_BROWSER=1"
+    shift
+    goto parse_args
+)
+if /i "%~1"=="--help" (
+    echo Usage: start.bat [--port PORT] [--log FILE] [--no-browser]
+    echo   --port PORT     HTTP server port ^(default 8080^)
+    echo   --log FILE      Save server output to FILE for troubleshooting
+    echo   --no-browser    Don't auto-open the browser
+    exit /b 0
+)
+echo [x] Unknown argument: %~1
+echo     Run "start.bat --help" for usage.
+pause
+exit /b 1
+:args_done
 
-:: Validate port
-set "PORT_OK=1"
-for /f "tokens=* delims=0123456789" %%a in ("%PORT%") do set "PORT_OK=0"
-if "!PORT_OK!"=="0" (
-    echo.%C_RED%Invalid port: %PORT% (must be a number 1-65535^)%C_RESET%
+rem Validate port is numeric and in range
+echo %PORT%| findstr /r "^[0-9][0-9]*$" >nul
+if errorlevel 1 (
+    echo [x] Invalid port "%PORT%" - must be a number.
+    pause
     exit /b 1
 )
 if %PORT% lss 1 (
-    echo.%C_RED%Invalid port: %PORT% (must be 1-65535^)%C_RESET%
+    echo [x] Invalid port "%PORT%" - must be between 1 and 65535.
+    pause
     exit /b 1
 )
 if %PORT% gtr 65535 (
-    echo.%C_RED%Invalid port: %PORT% (must be 1-65535^)%C_RESET%
+    echo [x] Invalid port "%PORT%" - must be between 1 and 65535.
+    pause
     exit /b 1
 )
 
-if not "%LOG_FILE%"=="" echo.Logging to %LOG_FILE%
-
-:: ===========================================================================
-:: SYSTEM DETECTION
-:: ===========================================================================
-set "OS_NAME=Windows"
-set "ARCH=%PROCESSOR_ARCHITECTURE%"
-if "%ARCH%"=="" set "ARCH=AMD64"
-
-:: Check for Windows version
-ver | find "Version 11" >nul 2>&1
-if !errorlevel! equ 0 set "OS_NAME=Windows 11"
-ver | find "Version 10" >nul 2>&1
-if !errorlevel! equ 0 set "OS_NAME=Windows 10"
-
-echo.  %C_CYAN%*%C_RESET% OS: !OS_NAME! (%ARCH%^)
-echo.  %C_CYAN%*%C_RESET% Port: %PORT%
-
-:: ===========================================================================
-:: CHECK FOR NODE.JS
-:: ===========================================================================
-:check_node
 echo.
-echo.%C_BOLD%[1/5] Checking Node.js...%C_RESET%
+echo ============================================================
+echo   Sentry Batch Launcher
+echo ============================================================
+echo.
+
+rem -----------------------------------------------------------------------------
+rem Step 0: confirm we're actually in the project folder
+rem -----------------------------------------------------------------------------
+if not exist "index.html" (
+    echo [x] index.html not found in this folder:
+    echo       %cd%
+    echo [x] Move start.bat into the Sentry Batch project root and try again.
+    echo.
+    pause
+    exit /b 1
+)
+echo [+] Project folder OK ^(%cd%^)
+echo.
+
+rem -----------------------------------------------------------------------------
+rem Step 1: Node.js present and new enough?
+rem -----------------------------------------------------------------------------
+echo [1/5] Checking Node.js...
 
 where node >nul 2>&1
-if !errorlevel! neq 0 (
-    echo.  %C_YELLOW%!%C_RESET% Node.js not found.
-    goto install_node
+if errorlevel 1 goto need_node
+
+for /f "usebackq delims=" %%v in (`node --version 2^>nul`) do set "NODE_RAW=%%v"
+if not defined NODE_RAW goto need_node
+
+set "NODE_VER=%NODE_RAW:v=%"
+for /f "tokens=1 delims=." %%m in ("%NODE_VER%") do set "NODE_MAJOR=%%m"
+
+set "NODE_MAJOR_OK=1"
+echo %NODE_MAJOR%| findstr /r "^[0-9][0-9]*$" >nul
+if errorlevel 1 set "NODE_MAJOR_OK=0"
+
+if "%NODE_MAJOR_OK%"=="0" (
+    echo [!] Could not determine Node.js version from "%NODE_RAW%" - continuing anyway.
+    goto node_ok
+)
+if %NODE_MAJOR% lss 18 (
+    echo [!] Node.js %NODE_RAW% is older than the recommended v18+.
+    echo [!] http-server should still work, but consider upgrading if you hit issues.
 )
 
-:: Check Node.js version (need 18+)
-for /f "tokens=*" %%a in ('node --version 2^>nul') do set "NODE_VER=%%a"
-set "NODE_VER=%NODE_VER:v=%"
-for /f "tokens=1 delims=." %%a in ("%NODE_VER%") do set "NODE_MAJOR=%%a"
-
-if !NODE_MAJOR! lss 18 (
-    echo.  %C_YELLOW%!%C_RESET% Node.js v!NODE_VER! is too old (need v18+^)
-    goto install_node
-)
-
-echo.  %C_GREEN%+%C_RESET% Node.js v!NODE_VER! found
+:node_ok
+echo [+] Node.js %NODE_RAW% found
 goto check_npm
 
-:: ===========================================================================
-:: INSTALL NODE.JS
-:: ===========================================================================
-:install_node
-echo.  Installing Node.js...
-
-:: Try winget first (Windows 10 1709+ / Windows 11)
-where winget >nul 2>&1
-if !errorlevel! equ 0 (
-    echo.  %C_CYAN%*%C_RESET% Installing via winget...
-    winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --silent >nul 2>&1
-    if !errorlevel! equ 0 (
-        :: Refresh PATH
-        for /f "tokens=*" %%a in ('winget list --id OpenJS.NodeJS.LTS --accept-source-agreements 2^>nul ^| find "Node"') do (
-            set "NODE_INSTALLED=1"
-        )
-        :: Add to PATH for this session
-        for /f "tokens=*" %%a in ('dir /s /b "%ProgramFiles%\nodejs\node.exe" 2^>nul ^| find "node.exe"') do (
-            set "PATH=%%~dpa;%PATH%"
-        )
-        for /f "tokens=*" %%a in ('dir /s /b "%ProgramFiles(x86)%\nodejs\node.exe" 2^>nul ^| find "node.exe"') do (
-            set "PATH=%%~dpa;%PATH%"
-        )
-        echo.  %C_GREEN%+%C_RESET% Node.js installed via winget
-        goto check_node
-    )
-    echo.  %C_YELLOW%!%C_RESET% winget install failed, trying next method...
-)
-
-:: Try Chocolatey
-where choco >nul 2>&1
-if !errorlevel! equ 0 (
-    echo.  %C_CYAN%*%C_RESET% Installing via Chocolatey...
-    choco install nodejs-lts -y --no-progress >nul 2>&1
-    if !errorlevel! equ 0 (
-        set "PATH=%ProgramData%\chocolatey\lib\nodejs-lts\tools;%PATH%"
-        echo.  %C_GREEN%+%C_RESET% Node.js installed via Chocolatey
-        goto check_node
-    )
-    echo.  %C_YELLOW%!%C_RESET% Chocolatey install failed, trying direct download...
-)
-
-:: Direct download as last resort
-echo.  %C_CYAN%*%C_RESET% Downloading Node.js LTS installer...
-set "NODE_URL=https://nodejs.org/dist/v22.9.0/"
-if /i "%ARCH%"=="ARM64" (
-    set "NODE_URL=%NODE_URL%node-v22.9.0-arm64.msi"
-) else if /i "%ARCH%"=="X86" (
-    set "NODE_URL=%NODE_URL%node-v22.9.0-x86.msi"
-) else (
-    set "NODE_URL=%NODE_URL%node-v22.9.0-x64.msi"
-)
-
-set "TEMP_MSI=%TEMP%\node-install.msi"
-echo.  %C_CYAN%*%C_RESET% Downloading from %NODE_URL%
-powershell -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%NODE_URL%' -OutFile '%TEMP_MSI%' -UseBasicParsing } catch { exit 1 }" >nul 2>&1
-
-if !errorlevel! neq 0 (
-    echo.  %C_RED%x%C_RESET% Download failed.
-    echo.  %C_RED%x%C_RESET% Please install Node.js manually from https://nodejs.org/
-    echo.  %C_YELLOW%!%C_RESET% Opening download page...
-    start https://nodejs.org/
+:need_node
+echo [!] Node.js not found. Attempting automatic installation...
+echo.
+call :install_node
+if errorlevel 1 (
+    echo.
+    echo [x] Automatic installation failed.
+    echo [x] Install Node.js manually from https://nodejs.org/ ^(LTS version^)
+    echo [x] then run this script again.
+    echo.
     pause
     exit /b 1
 )
 
-echo.  %C_CYAN%*%C_RESET% Running installer (may need admin rights^)...
-msiexec /i "%TEMP_MSI%" /qn /norestart >nul 2>&1
+where node >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo [x] Node.js was installed but is not yet visible on PATH in this window.
+    echo [x] Close this window, open a NEW terminal, and run start.bat again.
+    echo.
+    pause
+    exit /b 1
+)
+for /f "usebackq delims=" %%v in (`node --version 2^>nul`) do set "NODE_RAW=%%v"
+echo [+] Node.js %NODE_RAW% installed successfully.
 
-:: Wait for install to complete
-ping 127.0.0.1 -n 6 >nul
-
-:: Set PATH for this session
-set "PATH=%ProgramFiles%\nodejs;%ProgramFiles(x86)%\nodejs;%PATH%"
-del "%TEMP_MSI%" 2>nul
-goto check_node
-
-:: ===========================================================================
-:: CHECK NPM / NPX
-:: ===========================================================================
 :check_npm
 echo.
-echo.%C_BOLD%[2/5] Checking npm...%C_RESET%
+echo [2/5] Checking npm...
 where npm >nul 2>&1
-if !errorlevel! neq 0 (
-    echo.  %C_YELLOW%!%C_RESET% npm not found. Reinstalling Node.js should fix this.
-    goto install_node
+if errorlevel 1 (
+    echo [x] npm not found even though Node.js is installed.
+    echo [x] This usually means a broken Node.js install. Reinstall from https://nodejs.org/
+    echo.
+    pause
+    exit /b 1
 )
-for /f "tokens=*" %%a in ('npm --version 2^>nul') do set "NPM_VER=%%a"
-echo.  %C_GREEN%+%C_RESET% npm v!NPM_VER! found
+for /f "usebackq delims=" %%v in (`npm --version 2^>nul`) do set "NPM_VER=%%v"
+echo [+] npm v%NPM_VER% found
 
-:: ===========================================================================
-:: CHECK INTERNET CONNECTIVITY
-:: ===========================================================================
+rem -----------------------------------------------------------------------------
+rem Step 3: port availability (best-effort; non-fatal if the check itself fails)
+rem -----------------------------------------------------------------------------
 echo.
-echo.%C_BOLD%[3/5] Checking connectivity...%C_RESET%
-set "HAS_INTERNET=0"
-ping -n 1 -w 2000 registry.npmjs.org >nul 2>&1
-if !errorlevel! equ 0 set "HAS_INTERNET=1"
-if "!HAS_INTERNET!"=="1" (
-    echo.  %C_GREEN%+%C_RESET% Internet reachable
-) else (
-    echo.  %C_YELLOW%!%C_RESET% No internet detected (http-server will still start if already cached by npx^)
-)
+echo [3/5] Checking port %PORT%...
 
-:: ===========================================================================
-:: CHECK PORT AVAILABILITY
-:: ===========================================================================
-echo.
-echo.%C_BOLD%[4/5] Checking port %PORT%...%C_RESET%
-netstat -an | findstr "LISTENING" | findstr ":%PORT% " >nul 2>&1
-if !errorlevel! equ 0 (
-    echo.  %C_YELLOW%!%C_RESET% Port %PORT% is in use.
-    set "FOUND_PORT=0"
-    for /l %%p in (1,1,20) do (
-        set /a "TEST_PORT=%PORT%+%%p"
-        netstat -an | findstr "LISTENING" | findstr ":!TEST_PORT! " >nul 2>&1
-        if !errorlevel! neq 0 (
-            set "PORT=!TEST_PORT!"
-            set "FOUND_PORT=1"
-            echo.  %C_CYAN%*%C_RESET% Using alternative port !TEST_PORT!
-            goto port_done
+set "CHOSEN_PORT="
+for /l %%o in (0,1,%MAX_PORT_TRIES%) do (
+    if not defined CHOSEN_PORT (
+        set /a "TRY_PORT=%PORT%+%%o"
+        call :port_is_free !TRY_PORT!
+        if not errorlevel 1 (
+            set "CHOSEN_PORT=!TRY_PORT!"
         )
     )
-    if "!FOUND_PORT!"=="0" (
-        echo.  %C_RED%x%C_RESET% Could not find a free port after trying 20 alternatives.
-        echo.  %C_RED%x%C_RESET% Close programs using port %PORT% and try again.
-        pause
-        exit /b 1
-    )
+)
+
+if not defined CHOSEN_PORT (
+    echo [!] Could not confirm a free port after trying %PORT%-!TRY_PORT!.
+    echo [!] Continuing with %PORT% anyway - http-server will report if it's busy.
+    set "CHOSEN_PORT=%PORT%"
+) else if not "!CHOSEN_PORT!"=="%PORT%" (
+    echo [!] Port %PORT% is already in use.
+    echo [+] Using port !CHOSEN_PORT! instead.
 ) else (
-    echo.  %C_GREEN%+%C_RESET% Port %PORT% is available
+    echo [+] Port !CHOSEN_PORT! is available.
 )
-:port_done
-
-:: ===========================================================================
-:: PROJECT FILES CHECK
-:: ===========================================================================
-echo.
-echo.%C_BOLD%[5/5] Verifying project files...%C_RESET%
-if not exist "index.html" (
-    echo.  %C_RED%x%C_RESET% index.html not found!
-    echo.  %C_RED%x%C_RESET% Run this script from the Sentry Batch directory.
-    pause
-    exit /b 1
-)
-echo.  %C_GREEN%+%C_RESET% Project files OK
-
-:: ===========================================================================
-:: CLEANUP TRAP (Windows equivalent via a temp flag file)
-:: ===========================================================================
-set "CLEANUP_FLAG=%TEMP%\sentry_batch_running_%RANDOM%.tmp"
-echo %PORT% > "%CLEANUP_FLAG%"
-set "STARTED_AT=%TIME%"
-
-:: ===========================================================================
-:: HTTP SERVER
-:: ===========================================================================
-echo.
-echo.%C_BOLD%============================================================%C_RESET%
-echo.  %C_CYAN%*%C_RESET% Starting HTTP server on port %PORT%...
-echo.  %C_CYAN%*%C_RESET% URL: http://localhost:%PORT%/
-echo.%C_BOLD%============================================================%C_RESET%
-echo.
-
-:: Kill any leftover http-server on our port from previous runs
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":%PORT% " ^| findstr LISTENING') do (
-    if not "%%a"=="" (
-        taskkill /f /pid %%a >nul 2>&1
-    )
-)
-
-:: Start http-server minimized
-echo.  Starting server (this may take a moment on first run while npx downloads http-server^)...
-start "" /min cmd /c "npx --yes http-server -p %PORT% -a 127.0.0.1 --cors --cache -1 --silent"
-
-:: Wait for server with progressive timeout
-set "SERVER_READY=0"
-for /l %%t in (1,1,15) do (
-    ping 127.0.0.1 -n 2 >nul
-    :: Try to connect to the server using PowerShell
-    powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:%PORT%/' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch { exit 1 }" >nul 2>&1
-    if !errorlevel! equ 0 (
-        set "SERVER_READY=1"
-        echo.  %C_GREEN%+%C_RESET% Server ready after %%t seconds
-        goto server_ok
-    )
-    if %%t equ 1 echo.  %C_CYAN%*%C_RESET% Waiting for server...
-    if %%t equ 5 echo.  %C_CYAN%*%C_RESET% Still waiting (http-server may be downloading via npx^)...
-    if %%t equ 10 echo.  %C_CYAN%*%C_RESET% Nearly there...
-)
-
-:server_ok
-if "!SERVER_READY!"=="0" (
-    echo.  %C_RED%x%C_RESET% Server did not become ready after 15 attempts.
-    echo.  %C_RED%x%C_RESET% Try running: npx --yes http-server -p %PORT%
-    pause
-    exit /b 1
-)
-
-echo.
-echo.%C_GREEN%+%C_RESET% Server running at http://localhost:%PORT%/
-echo.
-
-:: ===========================================================================
-:: OPEN BROWSER
-:: ===========================================================================
-echo.  %C_CYAN%*%C_RESET% Opening browser...
+set "PORT=!CHOSEN_PORT!"
 set "URL=http://localhost:%PORT%/"
 
-:: Try multiple browser open methods
-start "" "%URL%" 2>nul
-if !errorlevel! neq 0 (
-    powershell -Command "Start-Process '%URL%'" >nul 2>&1
+rem -----------------------------------------------------------------------------
+rem Step 4: open the browser after a short delay (detached, never blocks us)
+rem -----------------------------------------------------------------------------
+echo.
+echo [4/5] Preparing browser launch...
+if "%NO_BROWSER%"=="1" (
+    echo [i] --no-browser set - skipping.
+) else (
+    start "" cmd /c "timeout /t 3 /nobreak >nul & start "" "%URL%""
+    echo [+] Will open %URL% in ~3 seconds.
 )
-echo.  %C_GREEN%+%C_RESET% Browser opened
 
-:: ===========================================================================
-:: DONE
-:: ===========================================================================
+rem -----------------------------------------------------------------------------
+rem Step 5: start the server IN THE FOREGROUND
+rem   - Foreground means real errors print and STAY on screen.
+rem   - Ctrl+C stops it cleanly (Windows will ask "Terminate batch job (Y/N)?"
+rem     for the wrapping script - that's normal, answer Y).
+rem   - Output is always mirrored to a temp log so we can diagnose failures,
+rem     and copied to --log FILE afterward if you asked for one.
+rem -----------------------------------------------------------------------------
 echo.
-echo.%C_BOLD%============================================================%C_RESET%
-echo.  %C_GREEN%Sentry Batch is running!%C_RESET%
-echo.  URL: %C_BOLD%http://localhost:%PORT%/%C_RESET%
-echo.  %C_DIM%Press Ctrl+C in this window to stop the server.%C_RESET%
-echo.%C_BOLD%============================================================%C_RESET%
+echo [5/5] Starting HTTP server on port %PORT%...
+echo       URL: %URL%
+echo.
+echo ------------------------------------------------------------
+echo   Server output below. Press Ctrl+C to stop the server.
+echo ------------------------------------------------------------
 echo.
 
-:: Keep window open so user can press Ctrl+C
-echo.%C_DIM%Server process running in background. Close this window to stop.%C_RESET%
+call npx --yes http-server -p %PORT% 2>&1 | powershell -NoProfile -Command "$input | Tee-Object -FilePath '%TEMP_LOG%'"
+set "SERVER_EXIT=%errorlevel%"
+
+echo.
+echo ------------------------------------------------------------
+
+if not "%LOG_FILE%"=="" (
+    copy /y "%TEMP_LOG%" "%LOG_FILE%" >nul 2>&1
+    echo [i] Server log saved to %LOG_FILE%
+)
+
+if "%SERVER_EXIT%"=="0" (
+    echo [+] Server stopped normally.
+    del "%TEMP_LOG%" 2>nul
+    echo.
+    pause
+    exit /b 0
+)
+
+rem -----------------------------------------------------------------------------
+rem Failure diagnostics: sniff the captured log for known error signatures
+rem -----------------------------------------------------------------------------
+echo [x] Server exited with an error ^(code %SERVER_EXIT%^).
+echo.
+
+findstr /c:"EADDRINUSE" "%TEMP_LOG%" >nul 2>&1
+if not errorlevel 1 (
+    echo [x] Port %PORT% was grabbed by something else at the last second.
+    echo [x] Fix:  start.bat --port 8081
+    goto diag_done
+)
+
+findstr /c:"ENOENT" "%TEMP_LOG%" >nul 2>&1
+if not errorlevel 1 (
+    echo [x] npm/npx could not find a required file or package.
+    echo [x] Fix:  delete any local node_modules folder here and try again,
+    echo [x]       or run:  npm cache clean --force
+    goto diag_done
+)
+
+findstr /c:"ENOTFOUND" "%TEMP_LOG%" >nul 2>&1
+if not errorlevel 1 (
+    echo [x] Network lookup failed - npx couldn't reach the npm registry.
+    echo [x] Fix: check your internet connection ^(needed the first time to
+    echo [x]      download http-server^), or check a proxy/firewall isn't
+    echo [x]      blocking registry.npmjs.org.
+    goto diag_done
+)
+
+findstr /c:"EACCES" "%TEMP_LOG%" "%TEMP_LOG%" >nul 2>&1
+if not errorlevel 1 (
+    echo [x] Permission denied. Try running this terminal as Administrator,
+    echo [x] or check antivirus isn't blocking node.exe / npx.
+    goto diag_done
+)
+
+echo [x] Unrecognized error. Full server output was captured above
+echo [x] and saved to: %TEMP_LOG%
+echo [x] You can also try running this manually to see more detail:
+echo [x]     npx --yes http-server -p %PORT%
+
+:diag_done
 echo.
 pause
+exit /b %SERVER_EXIT%
 
-:: ===========================================================================
-:: CLEANUP on exit
-:: ===========================================================================
-:cleanup
-echo.
-echo.  %C_YELLOW%!%C_RESET% Shutting down Sentry Batch...
+rem =============================================================================
+rem  Subroutines
+rem =============================================================================
 
-:: Kill http-server processes
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":%PORT% " ^| findstr LISTENING') do (
-    if not "%%a"=="" (
-        taskkill /f /pid %%a >nul 2>&1
+rem --- :port_is_free <port>  -> errorlevel 0 if free, 1 if busy/unknown ---------
+:port_is_free
+setlocal
+set "CHK_PORT=%~1"
+powershell -NoProfile -Command ^
+    "try { $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, %CHK_PORT%); $l.Start(); $l.Stop(); exit 0 } catch { exit 1 }" >nul 2>&1
+set "RESULT=%errorlevel%"
+endlocal & exit /b %RESULT%
+
+rem --- :install_node -> tries winget, then Chocolatey, then direct MSI ----------
+:install_node
+where winget >nul 2>&1
+if not errorlevel 1 (
+    echo [*] Installing Node.js LTS via winget...
+    winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements --silent
+    if not errorlevel 1 (
+        for /f "skip=2 tokens=2,*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%b"
+        set "PATH=%ProgramFiles%\nodejs;!SYS_PATH!;%PATH%"
+        exit /b 0
     )
+    echo [!] winget install failed or was cancelled. Trying Chocolatey...
 )
 
-:: Also kill any node processes that look like http-server
-taskkill /f /im node.exe /fi "WINDOWTITLE eq http-server*" >nul 2>&1
+where choco >nul 2>&1
+if not errorlevel 1 (
+    echo [*] Installing Node.js LTS via Chocolatey...
+    choco install nodejs-lts -y --no-progress
+    if not errorlevel 1 (
+        set "PATH=%ProgramData%\chocolatey\lib\nodejs-lts\tools;%PATH%"
+        exit /b 0
+    )
+    echo [!] Chocolatey install failed. Trying direct download...
+)
 
-:: Cleanup temp flag
-if exist "%CLEANUP_FLAG%" del "%CLEANUP_FLAG%" >nul 2>&1
+echo [*] Downloading Node.js LTS installer directly from nodejs.org...
+set "NODE_INDEX_URL=https://nodejs.org/dist/latest-v22.x/"
+set "TEMP_MSI=%TEMP%\node-install.msi"
 
-echo.  %C_GREEN%+%C_RESET% Server stopped.
-if not "%LOG_FILE%"=="" echo.Log saved to %LOG_FILE%
-timeout /t 2 >nul
+powershell -NoProfile -Command ^
+    "$ErrorActionPreference='Stop';" ^
+    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;" ^
+    "$page = Invoke-WebRequest -Uri '%NODE_INDEX_URL%' -UseBasicParsing;" ^
+    "$name = ($page.Links.href | Where-Object { $_ -like '*x64.msi' } | Select-Object -First 1);" ^
+    "if (-not $name) { exit 1 };" ^
+    "Invoke-WebRequest -Uri ('%NODE_INDEX_URL%' + $name) -OutFile '%TEMP_MSI%' -UseBasicParsing"
+
+if errorlevel 1 (
+    echo [x] Download failed ^(no internet, or nodejs.org unreachable^).
+    echo [i] Opening https://nodejs.org/ so you can download it manually...
+    start "" "https://nodejs.org/"
+    exit /b 1
+)
+
+echo [*] Running installer ^(a UAC prompt may appear^)...
+msiexec /i "%TEMP_MSI%" /qn /norestart
+if errorlevel 1 (
+    echo [x] msiexec reported an error installing Node.js.
+    del "%TEMP_MSI%" 2>nul
+    exit /b 1
+)
+timeout /t 5 /nobreak >nul
+del "%TEMP_MSI%" 2>nul
+set "PATH=%ProgramFiles%\nodejs;%ProgramFiles(x86)%\nodejs;%PATH%"
 exit /b 0
