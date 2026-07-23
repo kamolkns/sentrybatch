@@ -1,5 +1,9 @@
 import { APP_CONFIG } from './config.js';
 
+function withProxy(url, prefix) {
+  return prefix ? prefix + encodeURIComponent(url) : url;
+}
+
 function safeMessage(error){
   const message = String(error && error.message || 'Request failed');
   return message.replace(/(?:x-apikey|key|authorization)\s*[:=]\s*[^\s,;]+/gi, '$1: [redacted]');

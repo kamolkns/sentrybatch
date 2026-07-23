@@ -26,6 +26,7 @@ export const STORAGE_KEYS = Object.freeze({
   sessions: 'sb_sessions',
   tableColumns: 'sb_table_columns',
   sortStack: 'sb_sort_stack',
+  corsProxy: 'sb_cors_proxy',
 });
 
 export const SESSION_ONLY_KEYS = new Set([STORAGE_KEYS.vtKey, STORAGE_KEYS.abKey, STORAGE_KEYS.otxKey, STORAGE_KEYS.threatFoxKey]);

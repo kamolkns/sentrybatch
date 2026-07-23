@@ -2,7 +2,7 @@
 import { APP_CONFIG, STORAGE_KEYS } from './config.js';
 import { request } from './api.js';
 import { getStored, setStored, removeStored } from './cache.js';
-import { isPrivateOrReserved, extractHostname, isValidIPv4 } from './parser.js?v=20260718';
+import { isPrivateOrReserved, extractHostname, isValidIPv4 } from './parser.js';
 import { lookupTierOne } from './intelligence.js';
 import { readJson, writeJson, saveListItem } from './workflow.js';
 
@@ -60,7 +60,11 @@ function todayKey(){ return new Date().toISOString().slice(0,10); }
 function nowIso(){ return new Date().toISOString(); }
 
 /* Wrap a target URL with the user's configured CORS proxy prefix, if any. */
-const PROXY_PREFIX = 'https://corsproxy.io/?url=';
+const DEFAULT_PROXY_PREFIX = 'https://corsproxy.io/?url=';
+let PROXY_PREFIX = DEFAULT_PROXY_PREFIX;
+function setProxyPrefix(prefix){
+  PROXY_PREFIX = prefix || DEFAULT_PROXY_PREFIX;
+}
 function proxied(url){
   return PROXY_PREFIX + encodeURIComponent(url);
 }
@@ -158,21 +162,25 @@ function enrichCachedCountry(cached){
   // Migrate results saved by older versions, which called missing data
   // "Safe" and assigned it a score of zero.
   if(cached.riskLabel === 'Safe' || cached.riskLabel === 'Clean' || cached.vtVerdict === 'Clean'){
-    const hasVT = cached.vtFull && !cached.vtFull.error;
-    const hasAB = cached.abFull && !cached.abFull.error;
-    const scoring = computeScore({ vt: hasVT ? cached.vtFull : null, ab: hasAB ? cached.abFull : null });
-    const risk = riskLevel(scoring.score, hasVT ? cached.vtFull : null);
+    const vtFull = cached.vtFull || {};
+    const abFull = cached.abFull || {};
+    const hasVT = vtFull && !vtFull.error;
+    const hasAB = abFull && !abFull.error;
+    const scoring = computeScore({ vt: hasVT ? vtFull : null, ab: hasAB ? abFull : null });
+    const risk = riskLevel(scoring.score, hasVT ? vtFull : null);
     cached.score = scoring.score;
     cached.riskLabel = risk.label;
     cached.riskCls = risk.cls;
-    if(cached.vtVerdict === 'Clean') cached.vtVerdict = formatVTVerdict(cached.vtFull);
+    if(cached.vtVerdict === 'Clean') cached.vtVerdict = formatVTVerdict(vtFull);
     if(!hasVT && !hasAB) cached.sources = 'None';
   }
   return cached;
 }
 
 function countryIsMissing(result){
-  return !result || !result.country || result.country === '—' || result.country === 'Unknown';
+  if(!result || !result.country) return true;
+  const c = String(result.country).trim();
+  return c === '' || c === '—' || c === '-' || c === '–' || c === 'Unknown';
 }
 
 function vtDailyLimit(){
@@ -295,6 +303,9 @@ function lsSet(key, val){
 async function apiFetch(url, options = {}){
   const result = await request(url, {
     headers: options.headers || {},
+    method: options.method,
+    body: options.body,
+    proxyPrefix: options.proxyPrefix,
     timeoutMs: APP_CONFIG.requestTimeoutMs,
     signal: options.signal,
   });
@@ -346,7 +357,7 @@ function isValidIPv6(ip){
   return filtered.every(p => /^[0-9a-fA-F]{1,4}$/.test(p));
 }
 function isDomain(s){
-  return /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})+$/.test(s) && !isValidIPv4(s);
+  return /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{2,63})+$/.test(s) && !isValidIPv4(s) && !/^\d/.test(s);
 }
 function ipToLong(ip){
   const p = ip.split('.').map(Number);
@@ -399,6 +410,7 @@ async function resolveDomain(domain){
   if(vtKey){
     try{
       const res = await apiFetch(proxied(`https://www.virustotal.com/api/v3/domains/${encodeURIComponent(domain)}`), { headers:{'x-apikey':vtKey} });
+      if(!res.ok) throw new Error(`VT passive DNS HTTP ${res.status}`);
       const data = await res.json();
       const records = data?.data?.attributes?.last_dns_records || [];
       const aRecord = records.find(r => r.type === 'A');
@@ -591,9 +603,9 @@ async function checkVirusTotalIP(ip, apiKey, attempt, signal){
       }
       throw new Error('VT rate limited (429) after retries');
     }
-    incrementVtUsage();
     if(res.status === 401 || res.status === 403) throw new Error(`VT HTTP ${res.status} — check your API key`);
     if(!res.ok) throw new Error(`VT HTTP ${res.status}`);
+    incrementVtUsage();
     const data = await res.json();
     return extractVTData(data);
   }catch(e){
@@ -940,7 +952,8 @@ async function processSingleIP(ip, domainLabel, onStatus, signal){
     // to keep localStorage usage reasonable across hundreds/thousands of IPs.
     const cacheable = Object.assign({}, result);
     if(cacheable.vtFull){
-      cacheable.vtFull = Object.assign({}, result.vtFull, { raw: undefined, allEngines: undefined });
+      const { raw, allEngines, ...vtLite } = cacheable.vtFull;
+      cacheable.vtFull = vtLite;
     }
     setCache(ip, cacheable);
   }
@@ -1731,7 +1744,7 @@ function buildDetailHtml(r){
   const errs = (r.errors && r.errors.length) ? r.errors.map(escapeHtml).join('<br>') : 'None';
 
   let vtBlock = '<div class="hint">No VirusTotal data.</div>';
-  if(r.vtFull){
+  if(r.vtFull && r.vtFull.stats){
     const vt = r.vtFull;
     const s = vt.stats;
     const tagsHtml = vt.tags && vt.tags.length ? vt.tags.map(t=>`<span class="pill" style="cursor:default;">${escapeHtml(t)}</span>`).join(' ') : '—';
@@ -1855,14 +1868,17 @@ async function retrySingle(ip){
   const r = state.results.get(ip);
   const domainLabel = r ? r.domain : '';
   setRowStatus(ip, 'Processing', 'Retrying (bypass cache)…');
+  state.retryAbortController = new AbortController();
   try{
     localStorage.removeItem(LS_KEYS.cachePrefix + ip); // force fresh
-    const result = await processSingleIP(ip, domainLabel, (status, detail) => setRowStatus(ip, status, detail));
+    const result = await processSingleIP(ip, domainLabel, (status, detail) => setRowStatus(ip, status, detail), state.retryAbortController.signal);
     state.results.set(ip, result);
     renderTable(); updateSummary();
     log(`${ip} retry completed — ${result.status}${result.statusDetail ? ' — '+result.statusDetail : ''} — Score ${result.score}`, (result.status==='Failed'||result.status==='Error')?'l-err':'');
   }catch(e){
     log(`${ip} retry failed: ${e.message}`, 'l-err');
+  }finally{
+    state.retryAbortController = null;
   }
 }
 
@@ -1882,9 +1898,9 @@ document.querySelectorAll('table.results thead th[data-key]').forEach(th=>{
 
 
 /* filters */
-document.querySelectorAll('.pill').forEach(p=>{
+document.querySelectorAll('.table-tools .pill').forEach(p=>{
   p.addEventListener('click', ()=>{
-    document.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.table-tools .pill').forEach(x=>x.classList.remove('active'));
     p.classList.add('active');
     state.currentFilter = p.dataset.filter;
     renderTable();
@@ -1951,8 +1967,13 @@ $('loadSessionBtn').addEventListener('click', ()=>{
   const session = readJson(LS_KEYS.sessions, [])[0];
   if(!session){ workflowMessage('No saved session yet.'); return; }
   state.results.clear(); state.order = [];
-  session.rows.forEach(row=>{ state.results.set(row.ip, row); state.order.push(row.ip); });
-  renderTable(); updateSummary(); workflowMessage(`Loaded session with ${session.rows.length} results.`);
+  session.rows.forEach(row=>{
+    if(row.ip && (isValidIPv4(row.ip) || isValidIPv6(row.ip))){
+      state.results.set(row.ip, row);
+      state.order.push(row.ip);
+    }
+  });
+  renderTable(); updateSummary(); workflowMessage(`Loaded session with ${state.order.length} valid results.`);
 });
 $('customFilter').addEventListener('change', e=>{ state.customFilter = e.target.value; renderTable(); });
 $('secondarySort').addEventListener('change', e=>{ state.secondarySort = e.target.value; writeJson(LS_KEYS.sortStack, { primary: state.sortKey, secondary: state.secondarySort }); renderTable(); });
@@ -1974,7 +1995,7 @@ function countryDisplayForReport(r){
   const code = asIsoCountryCode(r.countryCode);
   const name = r.countryName || (code ? countryCodeToName(code) : '');
   const country = String(r.country || '').trim();
-  if(country && country !== 'Unknown' && country !== '...' && country !== 'â€¦' && country !== 'â€”'){
+  if(country && country !== 'Unknown' && country !== '...' && country !== '—'){
     return country;
   }
   if(code && name && name !== code) return `${code} - ${name}`;
@@ -2744,6 +2765,10 @@ $('stopBtn').addEventListener('click', ()=>{
     state.abortController.abort();
     state.abortController = null;
   }
+  if(state.retryAbortController){
+    state.retryAbortController.abort();
+    state.retryAbortController = null;
+  }
   log('Cancelling batch — terminating active requests...', 'l-warn');
 });
 
@@ -2829,6 +2854,9 @@ function loadSettings(){
   $('vtCustomRateWrap').style.display = $('vtTier').value === '60' ? 'block' : 'none';
   setSwitch('useVTSwitch', lsGet(LS_KEYS.useVT, '1') === '1');
   setSwitch('useABSwitch', lsGet(LS_KEYS.useAB, '1') === '1');
+  const proxy = lsGet(LS_KEYS.corsProxy, '');
+  if(proxy) setProxyPrefix(proxy);
+  if($('corsProxy')) $('corsProxy').value = proxy || DEFAULT_PROXY_PREFIX;
 }
 
 function collectSettingsExport(){
