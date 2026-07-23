@@ -335,7 +335,7 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
         <span class="api-pill quota" id="vtQuotaPill">VT quota: —</span>
         <span class="api-pill" id="abApiPill">AbuseIPDB: —</span>
       </div>
-      <span id="netStatus" class="icon-btn" style="cursor:default;"><span class="pulse-dot" id="pulseDot"></span><span id="netStatusText">Idle</span></span>
+      <span id="netStatus" class="icon-btn" style="cursor:default;" aria-live="polite"><span class="pulse-dot" id="pulseDot"></span><span id="netStatusText">Idle</span></span>
       <button class="icon-btn" id="themeToggle">☾ Theme</button>
     </div>
   </header>
@@ -589,13 +589,13 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
       <span class="chev">▾</span>
     </div>
     <div class="panel-body">
-      <div class="table-tools">
+      <div class="table-tools" role="toolbar" aria-label="Results table controls">
         <div class="left">
-          <input type="text" class="search-box" id="searchBox" placeholder="Search IP, domain, ISP, country…">
-          <span class="pill active" data-filter="all">All</span>
-          <span class="pill" data-filter="clean">No detections</span>
-          <span class="pill" data-filter="flagged">Flagged</span>
-          <span class="pill" data-filter="error">Errors</span>
+          <input type="text" class="search-box" id="searchBox" placeholder="Search IP, domain, ISP, country…" aria-label="Search results">
+          <span class="pill active" data-filter="all" role="radio" aria-checked="true">All</span>
+          <span class="pill" data-filter="clean" role="radio" aria-checked="false">No detections</span>
+          <span class="pill" data-filter="flagged" role="radio" aria-checked="false">Flagged</span>
+          <span class="pill" data-filter="error" role="radio" aria-checked="false">Errors</span>
         </div>
         <div class="right">
           <button class="btn danger" id="clearResultsBtn">Clear results</button>
@@ -658,8 +658,8 @@ table.results tbody tr.row-expand:has(+ tr.detail-row){background:var(--accent-d
         <button class="btn" id="loadSessionBtn">Load latest session</button>
       </div>
       <div class="field-row" style="margin-top:14px;">
-        <div class="field"><label for="customFilter">Custom filter</label><select id="customFilter"><option value="all">All results</option><option value="tagged">Tagged</option><option value="noted">Has notes</option><option value="intel">Has intelligence</option></select></div>
-        <div class="field"><label for="secondarySort">Secondary sort</label><select id="secondarySort"><option value="">None</option><option value="score">Threat score</option><option value="country">Country</option><option value="status">Status</option></select></div>
+        <div class="field"><label for="customFilter">Custom filter</label><select id="customFilter" aria-label="Custom filter"><option value="all">All results</option><option value="tagged">Tagged</option><option value="noted">Has notes</option><option value="intel">Has intelligence</option></select></div>
+        <div class="field"><label for="secondarySort">Secondary sort</label><select id="secondarySort" aria-label="Secondary sort"><option value="">None</option><option value="score">Threat score</option><option value="country">Country</option><option value="status">Status</option></select></div>
         <div class="field"><label>Column chooser</label><div class="hint" id="columnChooser"></div></div>
       </div>
       <div class="hint" id="workflowMsg" style="margin-top:8px;"></div>

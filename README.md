@@ -1,7 +1,7 @@
 # Sentry Batch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/badge/release-v1.2.0-blue)](https://github.com/kamolkns/sentrybatch/releases)
+[![GitHub release](https://img.shields.io/badge/release-v1.3.0-blue)](https://github.com/kamolkns/sentrybatch/releases)
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES%20Modules-yellow)](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 

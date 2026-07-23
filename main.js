@@ -1,6 +1,7 @@
 
 import { APP_CONFIG, STORAGE_KEYS } from './config.js';
 import { request } from './api.js';
+
 import { getStored, setStored, removeStored } from './cache.js';
 import { isPrivateOrReserved, extractHostname, isValidIPv4 } from './parser.js';
 import { lookupTierOne } from './intelligence.js';
@@ -36,6 +37,13 @@ const state = {
   vtCooldownUntil: 0,
   abortController: null,
   vizVersion: 0,
+};
+
+// Wrap Map.set to track per-result change ticks for DOM diffing in renderTable.
+const _resultSet = state.results.set.bind(state.results);
+state.results.set = (ip, data) => {
+  data._tick = (data._tick || 0) + 1;
+  return _resultSet(ip, data);
 };
 
 const LS_KEYS = STORAGE_KEYS;
@@ -74,6 +82,10 @@ function describeFetchError(e){
     return 'Blocked — the CORS proxy rejected or could not reach the request.';
   }
   return e.message || 'Unknown error';
+}
+
+function statsTotal(s){
+  return (s.malicious||0)+(s.suspicious||0)+(s.harmless||0)+(s.undetected||0)+(s.timeout||0);
 }
 
 function log(msg, cls){
@@ -428,7 +440,14 @@ function tokenize(raw){
   return raw.split(/[\n,\s]+/).map(s=>s.trim()).filter(Boolean);
 }
 
-// Full parse pipeline: normalize -> tokenize -> dedupe -> expand CIDR/ranges -> flag domains for async resolution
+/**
+ * Parse raw user input into a deduplicated IP list.
+ * Pipeline: tokenize -> normalize -> dedupe -> expand CIDR/ranges -> resolve domains via DNS.
+ * Capped at 1000 unique IPs. Domains are resolved asynchronously via DNS-over-HTTPS with fallback chain.
+ * @param {string} raw - Raw text from textarea or file.
+ * @param {function} [onProgress] - Called per domain resolution attempt.
+ * @returns {Promise<{ips: string[], domainMap: Map<string,string>, warnings: string[], exceeded: boolean}>}
+ */
 async function parseIPList(raw, onProgress){
   const rawTokens = tokenize(raw);
   const normalizedTokens = rawTokens.map(t => extractHostname(t));
@@ -723,7 +742,7 @@ function formatVTVerdict(vt){
   if(!vt || vt.error) return '—';
   const s = vt.stats || {};
   const mal = s.malicious || 0, sus = s.suspicious || 0;
-  const total = (s.malicious||0)+(s.suspicious||0)+(s.harmless||0)+(s.undetected||0)+(s.timeout||0);
+  const total = statsTotal(s);
   if(mal === 0 && sus === 0) return `No detections (0/${total})`;
   const parts = [];
   if(mal) parts.push(`${mal} malicious`);
@@ -737,11 +756,18 @@ function isVTFlagged(vt){
   return (s.malicious||0) > 0 || (s.suspicious||0) > 0;
 }
 
+/**
+ * Compute a composite threat score from VirusTotal and AbuseIPDB data.
+ * Formula: (VT malicious% * 2 + VT suspicious%) + floor boosts for thresholds,
+ * + AbuseIPDB confidence * 0.2. Capped to [0, 100] with one decimal.
+ * @param {{ vt: Object|null, ab: Object|null }} sources
+ * @returns {{ score: number|null, sources: string[] }}
+ */
 function computeScore({ vt, ab }){
   let score = null, sources = [];
   if(vt && !vt.error){
     const s = vt.stats;
-    const total = (s.malicious||0)+(s.suspicious||0)+(s.harmless||0)+(s.undetected||0)+(s.timeout||0) || 1;
+    const total = statsTotal(s) || 1;
     const malPct = ((s.malicious||0) / total) * 100;
     const susPct = ((s.suspicious||0) / total) * 100;
     score = malPct * 2 + susPct;
@@ -764,6 +790,13 @@ function computeScore({ vt, ab }){
   return { score, sources };
 }
 
+/**
+ * Classify risk based on VT engine counts and/or numeric score.
+ * Priority: VT engine thresholds (mal >= 3/1, sus >= 2/1), then score thresholds.
+ * @param {Object|null} vt - VT result object with stats.
+ * @param {number|null} score - Numeric threat score.
+ * @returns {{ label: string, cls: string }}
+ */
 function riskLevelFromVT(vt, score){
   if(vt && !vt.error){
     const mal = vt.stats.malicious || 0, sus = vt.stats.suspicious || 0;
@@ -779,6 +812,7 @@ function riskLevelFromVT(vt, score){
   return { label:'No detections reported', cls:'pending' };
 }
 
+/** Convenience wrapper — delegates to riskLevelFromVT when VT data is available. */
 function riskLevel(score, vt){
   if(vt !== undefined) return riskLevelFromVT(vt, score);
   if(score == null) return { label:'Not available', cls:'pending' };
@@ -823,6 +857,18 @@ function clearAllCache(){
 /* =========================================================================
    9. PROCESS SINGLE IP
    ========================================================================= */
+
+/**
+ * Enrich a single IP through all configured providers.
+ * Steps: geolocation (5 fallback providers), VirusTotal (with rate-limit wait), AbuseIPDB,
+ * tier-1 intelligence (OTX, ThreatFox, BGPView, RDAP), scoring, caching.
+ * Handles cache hits and partial country enrichment for cached results.
+ * @param {string} ip - Validated IP address.
+ * @param {string} [domainLabel] - Original domain if this IP was resolved from one.
+ * @param {function} [onStatus] - Called with (status, detail) for progress updates.
+ * @param {AbortSignal} [signal] - AbortSignal for cancellation.
+ * @returns {Promise<Object>} Complete result object with all enrichment data.
+ */
 async function processSingleIP(ip, domainLabel, onStatus, signal){
   const setStatus = (status, detail) => {
     if(onStatus) onStatus(status, detail);
@@ -903,7 +949,10 @@ async function processSingleIP(ip, domainLabel, onStatus, signal){
   }
 
   const [geo, vtResult, abResult, intelligence] = await Promise.all([
-    geoPromise, runVT(), runAB(), lookupTierOne(ip, { otxKey, threatFoxKey, proxyPrefix: PROXY_PREFIX, signal })
+    geoPromise,
+    runVT(),
+    runAB(),
+    lookupTierOne(ip, { otxKey, threatFoxKey, proxyPrefix: PROXY_PREFIX, signal })
   ]);
   vt = vtResult;
   ab = abResult;
@@ -963,6 +1012,16 @@ async function processSingleIP(ip, domainLabel, onStatus, signal){
 /* =========================================================================
    10. QUEUE / BATCH PROCESSING
    ========================================================================= */
+
+/**
+ * Process a queue of IPs in batches with pause/resume/stop support.
+ * Uses adaptive concurrency based on VT rate tier. Inter-batch delays prevent
+ * overwhelming APIs. Each batch runs processSingleIP in parallel for the
+ * configured batch size, then renders results and updates progress.
+ * @param {string[]} ips - Array of IPs to process.
+ * @param {Map<string,string>} domainMap - IP -> original domain mapping.
+ * @param {number} batchSize - Number of concurrent workers per batch.
+ */
 async function processQueue(ips, domainMap, batchSize){
   const queue = [...ips];
   const total = queue.length;
@@ -992,6 +1051,10 @@ async function processQueue(ips, domainMap, batchSize){
     }));
 
     batchResults.forEach(r => {
+      // Carry forward the _tick from the intermediate (status-update) object so
+      // DOM-diffing detects this as a change rather than a stale-vs-fresh clash.
+      const prev = state.results.get(r.ip);
+      if (prev && prev._tick) r._tick = prev._tick;
       state.results.set(r.ip, r);
       state.processedCount++;
     });
@@ -1062,6 +1125,33 @@ function formatDuration(sec){
    ========================================================================= */
 let pieChart, barChart, asnChart, timelineChart, trendChart, countryChart, providerChart;
 let vizLibsPromise = null;
+
+function upsertChart(chart, canvasId, config){
+  if(typeof Chart === 'undefined') return chart;
+  const el = $(canvasId);
+  if(!el) return null;
+  const dataFp = JSON.stringify(config.data);
+  const themeMode = document.documentElement.getAttribute('data-theme');
+  if(chart){
+    if(chart._theme !== themeMode){
+      chart.destroy();
+      const inst = new Chart(el, config);
+      inst._dataFp = dataFp;
+      inst._theme = themeMode;
+      return inst;
+    }
+    if(chart._dataFp !== dataFp){
+      chart.data = config.data;
+      chart.update();
+      chart._dataFp = dataFp;
+    }
+    return chart;
+  }
+  const inst = new Chart(el, config);
+  inst._dataFp = dataFp;
+  inst._theme = themeMode;
+  return inst;
+}
 
 function destroyChart(chart){
   if(chart) chart.destroy();
@@ -1216,7 +1306,7 @@ function updateSummary(){
 
 function updateCharts(noDetections, flagged, all){
   if(typeof Chart === 'undefined') return;
-  const buckets = [0,0,0,0]; // no detections, low concern, suspicious, malicious
+  const buckets = [0,0,0,0];
   all.forEach(r=>{
     if(r.riskLabel==='No detections reported') buckets[0]++;
     else if(r.riskLabel==='Low concern') buckets[1]++;
@@ -1226,14 +1316,12 @@ function updateCharts(noDetections, flagged, all){
   const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-soft').trim();
   const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim();
 
-  if(pieChart) pieChart.destroy();
-  pieChart = new Chart($('pieChart'), {
+  pieChart = upsertChart(pieChart, 'pieChart', {
     type:'doughnut',
     data:{ labels:['No detections (VT)','Flagged (VT)'], datasets:[{ data:[noDetections, flagged], backgroundColor:['#4ec9b0','#f14c4c'], borderWidth:0 }] },
     options:{ plugins:{ legend:{ labels:{ color:textColor } }, title:{ display:true, text:'VirusTotal detection status', color:textColor } }, maintainAspectRatio:false }
   });
-  if(barChart) barChart.destroy();
-  barChart = new Chart($('barChart'), {
+  barChart = upsertChart(barChart, 'barChart', {
     type:'bar',
     data:{ labels:['No detections','Low concern','Suspicious','Malicious'], datasets:[{ data:buckets, backgroundColor:['#4ec9b0','#dcdcaa','#cca700','#f14c4c'] }] },
     options:{
@@ -1258,12 +1346,6 @@ async function updateVisualizations(all){
   const rollingScore = rollingAverage(scoreSeries.map(n => Number.isFinite(n) ? n : 0), 8).map(n => Math.round(n * 10) / 10);
   const flaggedRate = seqRows.map((row, idx) => Math.round(((cumulativeFlagged[idx] / (idx + 1)) * 100) * 10) / 10);
 
-  asnChart = destroyChart(asnChart);
-  timelineChart = destroyChart(timelineChart);
-  trendChart = destroyChart(trendChart);
-  countryChart = destroyChart(countryChart);
-  providerChart = destroyChart(providerChart);
-
   const asnCounts = countBy(all, r => r.asOwner || r.isp || 'Unknown', 10);
   const countryCounts = countBy(all, r => r.country || 'Unknown', 10);
   const providerCounts = getSourceBuckets(all).slice(0, 8);
@@ -1273,7 +1355,7 @@ async function updateVisualizations(all){
 
   if(typeof Chart !== 'undefined'){
     if(asnCounts.length){
-      asnChart = new Chart($('asnChart'), {
+      asnChart = upsertChart(asnChart, 'asnChart', {
         type:'bar',
         data:{
           labels: asnCounts.map(([name]) => name.length > 32 ? `${name.slice(0, 29)}…` : name),
@@ -1299,10 +1381,12 @@ async function updateVisualizations(all){
           interaction:{ mode:'nearest', intersect:false },
         },
       });
+    } else if(asnChart){
+      asnChart = destroyChart(asnChart);
     }
 
     if(seqRows.length){
-      timelineChart = new Chart($('timelineChart'), {
+      timelineChart = upsertChart(timelineChart, 'timelineChart', {
         type:'line',
         data:{
           labels: timelineLabels,
@@ -1341,7 +1425,7 @@ async function updateVisualizations(all){
         },
       });
 
-      trendChart = new Chart($('trendChart'), {
+      trendChart = upsertChart(trendChart, 'trendChart', {
         type:'line',
         data:{
           labels: trendLabels,
@@ -1384,10 +1468,13 @@ async function updateVisualizations(all){
           interaction:{ mode:'index', intersect:false },
         },
       });
+    } else {
+      if(timelineChart) timelineChart = destroyChart(timelineChart);
+      if(trendChart) trendChart = destroyChart(trendChart);
     }
 
     if(countryCounts.length){
-      countryChart = new Chart($('countryChart'), {
+      countryChart = upsertChart(countryChart, 'countryChart', {
         type:'bar',
         data:{
           labels: countryCounts.map(([name]) => name.length > 24 ? `${name.slice(0, 21)}…` : name),
@@ -1407,10 +1494,12 @@ async function updateVisualizations(all){
           },
         },
       });
+    } else if(countryChart){
+      countryChart = destroyChart(countryChart);
     }
 
     if(providerCounts.length){
-      providerChart = new Chart($('providerChart'), {
+      providerChart = upsertChart(providerChart, 'providerChart', {
         type:'bar',
         data:{
           labels: providerCounts.map(([name]) => name),
@@ -1429,6 +1518,8 @@ async function updateVisualizations(all){
           },
         },
       });
+    } else if(providerChart){
+      providerChart = destroyChart(providerChart);
     }
   }
 
@@ -1679,46 +1770,100 @@ function renderStatusCell(r){
 }
 
 let expandedIp = null;
+
+function setRowHTML(tr, r){
+  tr.innerHTML = `
+    <td>${escapeHtml(r.ip)}</td>
+    <td>${escapeHtml(r.domain||'—')}</td>
+    <td title="${escapeHtml(r.countryCode ? 'ISO: '+r.countryCode : 'Geolocation')}">${escapeHtml(r.country||'Unknown')}</td>
+    <td>${escapeHtml(r.region||'—')}</td>
+    <td>${escapeHtml(r.city||'—')}</td>
+    <td>${escapeHtml(r.isp||'—')}</td>
+    <td>${escapeHtml(r.coords||'—')}</td>
+    <td>${escapeHtml(r.vtDetections||'—')}</td>
+    <td>${escapeHtml(r.vtRep!=null?r.vtRep:'—')}</td>
+    <td><span class="badge ${r.vtFlagged ? (r.vtFull && r.vtFull.stats && r.vtFull.stats.malicious ? 'malicious' : 'suspicious') : 'pending'}">${escapeHtml(r.vtVerdict||'—')}</span></td>
+    <td><div class="score-cell"><span class="score-num" style="color:${scoreColor(r.score)}">${r.score!=null?r.score:'—'}</span><div class="score-bar-track"><div class="score-bar-fill" style="width:${r.score||0}%;background:${scoreColor(r.score)}"></div></div></div></td>
+    <td><span class="badge ${r.riskCls||'pending'}">${escapeHtml(r.riskLabel||'—')}</span></td>
+    <td>${escapeHtml(r.sources||'—')}</td>
+    <td>${escapeHtml(r.lastReported ? new Date(r.lastReported).toLocaleString() : '—')}</td>
+    <td>${renderStatusCell(r)}</td>
+    <td><div class="row-actions">
+      <button type="button" data-copy-row="${escapeHtml(r.ip)}" title="Copy row for Excel">Copy</button>
+      <button type="button" class="danger" data-clear-row="${escapeHtml(r.ip)}" title="Remove this result">Clear</button>
+    </div></td>
+  `;
+}
+
 function renderTable(){
   const rows = getFilteredSorted();
   const tbody = $('resultsBody');
+  const ips = new Set(rows.map(r => r.ip));
+
+  // Phase 1: build maps of existing rows + detail rows, remove stale ones.
+  const existingRows = new Map();
+  const existingDetails = new Map();
+  const snapshot = [...tbody.children];
+  for (const tr of snapshot) {
+    if (tr.dataset.ip) {
+      existingRows.set(tr.dataset.ip, tr);
+    } else if (tr.dataset.parent) {
+      existingDetails.set(tr.dataset.parent, tr);
+    }
+  }
+  for (const [ip] of existingRows) {
+    if (!ips.has(ip)) {
+      existingRows.get(ip).remove();
+      existingRows.delete(ip);
+      if (existingDetails.has(ip)) {
+        existingDetails.get(ip).remove();
+        existingDetails.delete(ip);
+      }
+    }
+  }
+
+  // Phase 2: build ordered fragment, reusing existing DOM nodes.
   const frag = document.createDocumentFragment();
+  for (const r of rows) {
+    const tick = String(r._tick || 0);
+    let tr = existingRows.get(r.ip);
 
-  rows.forEach(r=>{
-    const tr = el('tr', 'row-expand');
-    tr.dataset.ip = r.ip;
-
-    tr.innerHTML = `
-      <td>${escapeHtml(r.ip)}</td>
-      <td>${escapeHtml(r.domain||'—')}</td>
-      <td title="${escapeHtml(r.countryCode ? 'ISO: '+r.countryCode : 'Geolocation')}">${escapeHtml(r.country||'Unknown')}</td>
-      <td>${escapeHtml(r.region||'—')}</td>
-      <td>${escapeHtml(r.city||'—')}</td>
-      <td>${escapeHtml(r.isp||'—')}</td>
-      <td>${escapeHtml(r.coords||'—')}</td>
-      <td>${escapeHtml(r.vtDetections||'—')}</td>
-      <td>${escapeHtml(r.vtRep!=null?r.vtRep:'—')}</td>
-      <td><span class="badge ${r.vtFlagged ? (r.vtFull && r.vtFull.stats && r.vtFull.stats.malicious ? 'malicious' : 'suspicious') : 'pending'}">${escapeHtml(r.vtVerdict||'—')}</span></td>
-      <td><div class="score-cell"><span class="score-num" style="color:${scoreColor(r.score)}">${r.score!=null?r.score:'—'}</span><div class="score-bar-track"><div class="score-bar-fill" style="width:${r.score||0}%;background:${scoreColor(r.score)}"></div></div></div></td>
-      <td><span class="badge ${r.riskCls||'pending'}">${escapeHtml(r.riskLabel||'—')}</span></td>
-      <td>${escapeHtml(r.sources||'—')}</td>
-      <td>${escapeHtml(r.lastReported ? new Date(r.lastReported).toLocaleString() : '—')}</td>
-      <td>${renderStatusCell(r)}</td>
-      <td><div class="row-actions">
-        <button type="button" data-copy-row="${escapeHtml(r.ip)}" title="Copy row for Excel">Copy</button>
-        <button type="button" class="danger" data-clear-row="${escapeHtml(r.ip)}" title="Remove this result">Clear</button>
-      </div></td>
-    `;
+    if (tr) {
+      if (tr.dataset.tick !== tick) {
+        setRowHTML(tr, r);
+        tr.dataset.tick = tick;
+      }
+    } else {
+      tr = document.createElement('tr');
+      tr.className = 'row-expand';
+      tr.dataset.ip = r.ip;
+      setRowHTML(tr, r);
+      tr.dataset.tick = tick;
+    }
     frag.appendChild(tr);
 
-    if(expandedIp === r.ip){
-      const dr = el('tr','detail-row');
-      const td = el('td'); td.colSpan = 16;
-      td.innerHTML = buildDetailHtml(r);
-      dr.appendChild(td);
+    // Expandable detail row
+    if (expandedIp === r.ip) {
+      let dr = existingDetails.get(r.ip);
+      if (dr) {
+        if (dr.dataset.tick !== tick) {
+          const td = dr.querySelector('td');
+          if (td) td.innerHTML = buildDetailHtml(r);
+          dr.dataset.tick = tick;
+        }
+      } else {
+        dr = document.createElement('tr');
+        dr.className = 'detail-row';
+        dr.dataset.parent = r.ip;
+        const td = document.createElement('td');
+        td.colSpan = 16;
+        td.innerHTML = buildDetailHtml(r);
+        dr.appendChild(td);
+        dr.dataset.tick = tick;
+      }
       frag.appendChild(dr);
     }
-  });
+  }
 
   tbody.innerHTML = '';
   tbody.appendChild(frag);
@@ -1728,12 +1873,15 @@ function renderTable(){
 
 function applyColumnVisibility(){
   const hidden = state.hiddenColumns;
-  document.querySelectorAll('#resultsTable tr').forEach(row=>{
-    [...row.children].forEach((cell, index)=>{
-      if(cell.colSpan > 1) return;
-      cell.hidden = hidden.has(index);
-    });
-  });
+  const table = $('resultsTable');
+  if (!table) return;
+  for (const row of table.rows) {
+    for (let i = 0; i < row.cells.length; i++) {
+      const cell = row.cells[i];
+      if (cell.colSpan > 1) continue;
+      cell.hidden = hidden.has(i);
+    }
+  }
 }
 
 function buildDetailHtml(r){
@@ -1872,6 +2020,8 @@ async function retrySingle(ip){
   try{
     localStorage.removeItem(LS_KEYS.cachePrefix + ip); // force fresh
     const result = await processSingleIP(ip, domainLabel, (status, detail) => setRowStatus(ip, status, detail), state.retryAbortController.signal);
+    const retryPrev = state.results.get(ip);
+    if (retryPrev && retryPrev._tick) result._tick = retryPrev._tick;
     state.results.set(ip, result);
     renderTable(); updateSummary();
     log(`${ip} retry completed — ${result.status}${result.statusDetail ? ' — '+result.statusDetail : ''} — Score ${result.score}`, (result.status==='Failed'||result.status==='Error')?'l-err':'');
@@ -1900,8 +2050,12 @@ document.querySelectorAll('table.results thead th[data-key]').forEach(th=>{
 /* filters */
 document.querySelectorAll('.table-tools .pill').forEach(p=>{
   p.addEventListener('click', ()=>{
-    document.querySelectorAll('.table-tools .pill').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.table-tools .pill').forEach(x => {
+      x.classList.remove('active');
+      x.setAttribute('aria-checked', 'false');
+    });
     p.classList.add('active');
+    p.setAttribute('aria-checked', 'true');
     state.currentFilter = p.dataset.filter;
     renderTable();
   });
@@ -2856,7 +3010,6 @@ function loadSettings(){
   setSwitch('useABSwitch', lsGet(LS_KEYS.useAB, '1') === '1');
   const proxy = lsGet(LS_KEYS.corsProxy, '');
   if(proxy) setProxyPrefix(proxy);
-  if($('corsProxy')) $('corsProxy').value = proxy || DEFAULT_PROXY_PREFIX;
 }
 
 function collectSettingsExport(){
@@ -3096,6 +3249,14 @@ function init(){
   registerServiceWorker();
   testApiConnections();
   detectMyIp();
+  // Accessibility: announce status region for screen readers
+  $('netStatus').setAttribute('role', 'status');
+  $('searchBox').setAttribute('aria-label', 'Search IP, domain, ISP, country…');
+  // Filter pills act as a radio group for selecting which results to show
+  document.querySelectorAll('.table-tools .pill').forEach(p => {
+    p.setAttribute('role', 'radio');
+    p.setAttribute('aria-checked', p.classList.contains('active') ? 'true' : 'false');
+  });
   renderTable();
   updateSummary();
   log('Sentry Batch initialized. Configure API keys in Settings for threat scoring.', '');

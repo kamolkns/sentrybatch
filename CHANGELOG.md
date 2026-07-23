@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased / v1.3.0
+
+### Added
+- DOM-diffing table renderer — reuses existing `<tr>` elements for faster batch updates.
+- Chart.js instance reuse — `upsertChart()` updates charts in-place instead of destroy+recreate.
+- Accessibility improvements — ARIA attributes, roles, and labels across the UI.
+- `statsTotal()` helper extracted for maintainability.
+
+### Changed
+- `applyColumnVisibility()` optimized — uses `table.rows` and `row.cells` instead of `querySelectorAll`.
+- `setRowHTML()` extracted from `renderTable()` for cleaner separation.
+
+### Fixed
+- Dead `$('corsProxy')` DOM reference removed from `loadSettings`.
+
 ## 1.2.0 — 2026-07-23
 
 ### Added
